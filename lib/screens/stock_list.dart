@@ -31,9 +31,9 @@ class _StockListPageState extends State<StockListPage> {
     });
   }
 
-  Future<List<Lot>> _loadLots() async {
+  Stream<List<Lot>> _loadLots() async* {
     List<Lot> allLots = await Lot.lots(database);
-    return allLots
+    yield allLots
         .where((element) => element.depot_uuid == _selectedDepotUuid)
         .toList();
   }
@@ -41,8 +41,49 @@ class _StockListPageState extends State<StockListPage> {
   @override
   Widget build(BuildContext context) {
     // FutureBuilder for list of lots
-    var futureBuilder = FutureBuilder<List<Lot>>(
-      future: _loadLots(),
+    // var futureBuilder = FutureBuilder<List<Lot>>(
+    //   future: _loadLots(),
+    //   builder: ((context, snapshot) {
+    //     switch (snapshot.connectionState) {
+    //       case ConnectionState.none:
+    //         return const Center(child: Text('Aucune connexion'));
+    //       case ConnectionState.waiting:
+    //         return const Center(child: CircularProgressIndicator());
+    //       default:
+    //         if (snapshot.hasError) {
+    //           return Center(child: Text('${snapshot.error}'));
+    //         } else if (snapshot.hasData) {
+    //           return Column(
+    //             children: <Widget>[
+    //               Padding(
+    //                 padding: const EdgeInsets.all(5),
+    //                 child: Center(
+    //                   child: Text(
+    //                     _selectedDepotText,
+    //                     style: TextStyle(
+    //                       fontSize: 20,
+    //                       color: Colors.blue[700],
+    //                     ),
+    //                   ),
+    //                 ),
+    //               ),
+    //               Expanded(
+    //                 child: createListView(context, snapshot),
+    //               )
+    //             ],
+    //           );
+    //           // return createListView(context, snapshot);
+    //         } else {
+    //           return const Center(
+    //             child: Text('Aucune données trouvées'),
+    //           );
+    //         }
+    //     }
+    //   }),
+    // );
+
+    var streamBuilder = StreamBuilder<List<Lot>>(
+      stream: _loadLots(),
       builder: ((context, snapshot) {
         switch (snapshot.connectionState) {
           case ConnectionState.none:
@@ -53,9 +94,30 @@ class _StockListPageState extends State<StockListPage> {
             if (snapshot.hasError) {
               return Center(child: Text('${snapshot.error}'));
             } else if (snapshot.hasData) {
-              return createListView(context, snapshot);
+              return Column(
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.all(5),
+                    child: Center(
+                      child: Text(
+                        _selectedDepotText,
+                        style: TextStyle(
+                          fontSize: 20,
+                          color: Colors.blue[700],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: createListView(context, snapshot),
+                  )
+                ],
+              );
+              // return createListView(context, snapshot);
             } else {
-              return const Center(child: CircularProgressIndicator());
+              return const Center(
+                child: Text('Aucune données trouvées'),
+              );
             }
         }
       }),
@@ -75,7 +137,7 @@ class _StockListPageState extends State<StockListPage> {
           },
         ),
       ),
-      body: futureBuilder,
+      body: streamBuilder,
     );
   }
 
@@ -84,32 +146,23 @@ class _StockListPageState extends State<StockListPage> {
     List<Lot> values = snapshot.data ?? [];
     return ListView.builder(
       itemCount: values.length,
-      itemBuilder: ((context2, index) {
+      itemBuilder: ((context, index) {
         return Column(
           children: <Widget>[
             Card(
-              elevation: 1,
-              color: Theme.of(context).colorScheme.surfaceVariant,
+              elevation: 0.5,
               child: Column(
                 children: [
                   ListTile(
                     title: Text('${values[index].text}'),
                     subtitle: Text('Code: ${values[index].code}'),
+                    trailing: Chip(
+                      backgroundColor: Colors.green[200],
+                      label: Text(
+                          'Qty: ${values[index].quantity} ${values[index].unit_type}'),
+                    ),
                   ),
                   createLotChip(values[index]),
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                    child: Row(
-                      children: [
-                        Chip(
-                          backgroundColor: Colors.green[200],
-                          label: Text(
-                              'Qty: ${values[index].quantity} ${values[index].unit_type}'),
-                        ),
-                      ],
-                    ),
-                  )
                 ],
               ),
             )
