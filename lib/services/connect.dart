@@ -49,6 +49,7 @@ class Connect {
         'x-access-token': token,
       },
     );
+
     return jsonDecode(response.body);
   }
 }

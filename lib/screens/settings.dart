@@ -122,6 +122,8 @@ class _SettingsPageState extends State<SettingsPage> {
     await prefs.setString('server', _serverUrl);
     await prefs.setString('username', _username);
     await prefs.setString('password', _password);
+    await prefs.remove('selected_depot_text');
+    await prefs.remove('selected_depot_uuid');
   }
 
   @override
@@ -140,8 +142,7 @@ class _SettingsPageState extends State<SettingsPage> {
           },
         ),
       ),
-      body: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
+      body: ListView(
         children: <Widget>[
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
@@ -205,10 +206,12 @@ class _SettingsPageState extends State<SettingsPage> {
                   : const Text('Soumettre'),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(10.0),
+          Center(
             child: _isConnectionSucceed && _isDepotSynced
-                ? const Text('Synchronisation depot OK')
+                ? const Text(
+                    'Synchronisation depot OK',
+                    style: TextStyle(color: Colors.green),
+                  )
                 : null,
           )
         ],

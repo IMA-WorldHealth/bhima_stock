@@ -74,7 +74,7 @@ class _ConfigureDepotPageState extends State<ConfigureDepotPage> {
           } else {
             return Padding(
               padding: const EdgeInsets.all(10.0),
-              child: Column(
+              child: ListView(
                 children: <Widget>[
                   FormBuilder(
                     key: _formKey,
