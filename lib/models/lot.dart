@@ -13,15 +13,20 @@ class Lot {
   String? group_name;
   String? depot_text;
   String? depot_uuid;
+  num? is_asset;
+  String? barcode;
+  String? serial_number;
+  String? reference_number;
+  String? manufacturer_brand;
+  String? manufacturer_model;
   num? unit_cost;
   num? quantity;
   num? avg_consumption;
-  num? lifetime;
-  num? lifetime_lot;
   bool? exhausted;
   bool? expired;
   bool? near_expiration;
   DateTime? expiration_date;
+  DateTime? entry_date;
 
   Lot({
     required this.uuid,
@@ -34,15 +39,20 @@ class Lot {
     required this.group_name,
     required this.depot_text,
     required this.depot_uuid,
+    required this.is_asset,
+    required this.barcode,
+    required this.serial_number,
+    required this.reference_number,
+    required this.manufacturer_brand,
+    required this.manufacturer_model,
     required this.unit_cost,
     required this.quantity,
     required this.avg_consumption,
-    required this.lifetime,
-    required this.lifetime_lot,
     required this.exhausted,
     required this.expired,
     required this.near_expiration,
     required this.expiration_date,
+    required this.entry_date,
   });
 
   Map<String, dynamic> toMap() {
@@ -57,15 +67,20 @@ class Lot {
       'group_name': group_name,
       'depot_text': depot_text,
       'depot_uuid': depot_uuid,
+      'is_asset': is_asset,
+      'barcode': barcode,
+      'serial_number': serial_number,
+      'reference_number': reference_number,
+      'manufacturer_brand': manufacturer_brand,
+      'manufacturer_model': manufacturer_model,
       'unit_cost': unit_cost,
       'quantity': quantity,
       'avg_consumption': avg_consumption,
-      'lifetime': lifetime,
-      'lifetime_lot': lifetime_lot,
       'exhausted': exhausted == true ? 1 : 0,
       'expired': expired == true ? 1 : 0,
       'near_expiration': near_expiration == true ? 1 : 0,
       'expiration_date': expiration_date.toString(),
+      'entry_date': entry_date.toString(),
     };
   }
 
@@ -79,7 +94,7 @@ class Lot {
     // Get a reference to the database.
     final db = await database;
 
-    // Query the table for all The Depots.
+    // Query the table for all The lot.
     final List<Map<String, dynamic>> maps = await db.query('lot');
 
     // Convert the List<Map<String, dynamic> into a List<Lot>.
@@ -95,15 +110,20 @@ class Lot {
         group_name: maps[i]['group_name'],
         depot_text: maps[i]['depot_text'],
         depot_uuid: maps[i]['depot_uuid'],
+        is_asset: maps[i]['is_asset'],
+        barcode: maps[i]['barcode'],
+        serial_number: maps[i]['serial_number'],
+        reference_number: maps[i]['reference_number'],
+        manufacturer_brand: maps[i]['manufacturer_brand'],
+        manufacturer_model: maps[i]['manufacturer_model'],
         unit_cost: maps[i]['unit_cost'],
         quantity: maps[i]['quantity'],
         avg_consumption: maps[i]['avg_consumption'],
-        lifetime: maps[i]['lifetime'],
-        lifetime_lot: maps[i]['lifetime_lot'],
         exhausted: parseBool(maps[i]['exhausted']),
         expired: parseBool(maps[i]['expired']),
         near_expiration: parseBool(maps[i]['near_expiration']),
         expiration_date: parseDate(maps[i]['expiration_date']),
+        entry_date: parseDate(maps[i]['entry_date']),
       );
     });
 
@@ -116,7 +136,7 @@ class Lot {
     await db.insert(
       'lot',
       lot.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
+      conflictAlgorithm: ConflictAlgorithm.ignore,
     );
   }
 

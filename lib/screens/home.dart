@@ -23,33 +23,26 @@ class _HomePageState extends State<HomePage> {
   String _serverUrl = '';
   String _username = '';
   String _password = '';
+  int _importedRecords = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadSavedDepot();
-    _loadSettings();
-  }
-
-  // //Loading saved selected depot
-  Future<void> _loadSavedDepot() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _selectedDepotText = (prefs.getString('selected_depot_text') ?? '');
-    });
+    _loadSavedPreferences();
   }
 
   //Loading settings values on start
-  Future<void> _loadSettings() async {
+  Future<void> _loadSavedPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _serverUrl = (prefs.getString('server') ?? '');
       _username = (prefs.getString('username') ?? '');
       _password = (prefs.getString('password') ?? '');
+      _selectedDepotText = (prefs.getString('selected_depot_text') ?? '');
     });
   }
 
-  Future checkServerConnection() async {
+  Future serverConnection() async {
     _isConnectionSucceed = false;
     try {
       // init connexion by getting the user token
@@ -65,7 +58,7 @@ class _HomePageState extends State<HomePage> {
 
   Future fetchLots() async {
     try {
-      const lotDataUrl = '/stock/lots/depots?displayValues=&includeEmptyLot=1';
+      const lotDataUrl = '/stock/lots/depots?includeEmptyLot=1';
       List lotsRaw = await connexion.api(lotDataUrl);
 
       List<Lot> lots = lotsRaw.map((lot) {
@@ -80,15 +73,20 @@ class _HomePageState extends State<HomePage> {
           group_name: lot['group_name'],
           depot_text: lot['depot_text'],
           depot_uuid: lot['depot_uuid'],
+          is_asset: lot['is_asset'],
+          barcode: lot['barcode'],
+          serial_number: lot['serial_number'],
+          reference_number: lot['reference_number'],
+          manufacturer_brand: lot['manufacturer_brand'],
+          manufacturer_model: lot['manufacturer_model'],
           unit_cost: lot['unit_cost'],
           quantity: lot['quantity'],
           avg_consumption: lot['avg_consumption'],
-          lifetime: lot['lifetime'],
-          lifetime_lot: lot['lifetime_lot'],
           exhausted: parseBool(lot['exhausted']),
           expired: parseBool(lot['expired']),
           near_expiration: parseBool(lot['near_expiration']),
           expiration_date: parseDate(lot['expiration_date']),
+          entry_date: parseDate(lot['entry_date']),
         );
       }).toList();
 
@@ -100,30 +98,40 @@ class _HomePageState extends State<HomePage> {
       lots.forEach((lot) async {
         await Lot.insertLot(database, lot);
       });
+
+      setState(() {
+        _importedRecords = lots.length;
+      });
     } catch (e) {
-      print('Error during fetch of lots : $e');
+      print(
+          'Error during fetch of lots : $e, $_serverUrl, $_username, $_password');
     }
   }
 
   Future syncBtnClicked() async {
-    try {
-      setState(() {
-        _isSyncing = true;
-      });
+    if (_isSyncing) {
+      return null;
+    } else {
+      // sync data
+      try {
+        setState(() {
+          _isSyncing = true;
+        });
 
-      await checkServerConnection();
+        await serverConnection();
 
-      await fetchLots();
+        await fetchLots();
 
-      setState(() {
-        lastUpdate = DateTime.now();
-        _isSyncing = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isSyncing = false;
-      });
-      print(e);
+        setState(() {
+          lastUpdate = DateTime.now();
+          _isSyncing = false;
+        });
+      } catch (e) {
+        setState(() {
+          _isSyncing = false;
+        });
+        print(e);
+      }
     }
   }
 
@@ -151,14 +159,14 @@ class _HomePageState extends State<HomePage> {
                     context,
                     MaterialPageRoute(
                         builder: (context) => const ConfigureDepotPage()),
-                  ).then((value) => value ? _loadSavedDepot() : null);
+                  ).then((value) => value ? _loadSavedPreferences() : null);
                   break;
                 case 'Paramètres':
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                         builder: (context) => const SettingsPage()),
-                  ).then((value) => value ? _loadSavedDepot() : null);
+                  ).then((value) => value ? _loadSavedPreferences() : null);
                   break;
               }
             },
@@ -252,7 +260,10 @@ class _HomePageState extends State<HomePage> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: <Widget>[
                             _isSyncing
-                                ? const Text('En cours...')
+                                ? const CircularProgressIndicator(
+                                    color: Colors.white,
+                                    semanticsLabel: 'Chargement...',
+                                  )
                                 : const Text('Synchroniser'),
                           ],
                         ),
@@ -262,8 +273,13 @@ class _HomePageState extends State<HomePage> {
                       padding: const EdgeInsets.all(8.0),
                       child: Column(
                         children: <Widget>[
-                          const Text('Dernière synchronisation'),
+                          Text(lastUpdate != null
+                              ? 'Dernière synchronisation'
+                              : ''),
                           Text(lastUpdate != null ? lastUpdate.toString() : ''),
+                          Text(lastUpdate != null
+                              ? 'Nombre des lots importés : $_importedRecords'
+                              : ''),
                         ],
                       ),
                     )

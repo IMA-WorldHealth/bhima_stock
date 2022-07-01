@@ -1,5 +1,6 @@
 import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/services/db.dart';
+import 'package:bhima_collect/utilities/util.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:date_format/date_format.dart';
@@ -31,10 +32,11 @@ class _StockListPageState extends State<StockListPage> {
     });
   }
 
-  Stream<List<Lot>> _loadLots() async* {
+  Stream<List<Lot>> _loadLots(String currentDepot) async* {
     List<Lot> allLots = await Lot.lots(database);
     yield allLots
-        .where((element) => element.depot_uuid == _selectedDepotUuid)
+        .where((element) =>
+            element.depot_uuid == currentDepot && element.quantity! > 0)
         .toList();
   }
 
@@ -83,7 +85,7 @@ class _StockListPageState extends State<StockListPage> {
     // );
 
     var streamBuilder = StreamBuilder<List<Lot>>(
-      stream: _loadLots(),
+      stream: _loadLots(_selectedDepotUuid),
       builder: ((context, snapshot) {
         switch (snapshot.connectionState) {
           case ConnectionState.none:
@@ -162,6 +164,7 @@ class _StockListPageState extends State<StockListPage> {
                           'Qty: ${values[index].quantity} ${values[index].unit_type}'),
                     ),
                   ),
+                  createAssetTile(values[index]),
                   createLotChip(values[index]),
                 ],
               ),
@@ -170,6 +173,25 @@ class _StockListPageState extends State<StockListPage> {
         );
       }),
     );
+  }
+
+  Widget createAssetTile(Lot value) {
+    if (value.is_asset == 1) {
+      String barcode = value.barcode ?? '';
+      String serialNumber =
+          stringNotNull(value.serial_number) ? '${value.serial_number}' : '';
+      String manufacturerBrand = value.manufacturer_brand ?? '';
+      String manufacturerModel = stringNotNull(value.manufacturer_model)
+          ? ' - ${value.manufacturer_model}'
+          : '';
+      return ListTile(
+        title: Text('Brand: $manufacturerBrand $manufacturerModel'),
+        subtitle: Text('Serial: $serialNumber'),
+        trailing: Text(barcode),
+      );
+    } else {
+      return const Divider();
+    }
   }
 
   Widget createLotChip(value) {

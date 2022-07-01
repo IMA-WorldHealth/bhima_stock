@@ -12,10 +12,10 @@ class BhimaDatabase {
       // Set the path to the database. Note: Using the `join` function from the
       // `path` package is best practice to ensure the path is correctly
       // constructed for each platform.
-      join(await getDatabasesPath(), 'bhima4.db'),
+      join(await getDatabasesPath(), 'bhima.db'),
       // When the database is first created, create a table to store depots.
       onCreate: (db, version) async {
-        var location = join(await getDatabasesPath(), 'bhima2.db');
+        var location = join(await getDatabasesPath(), 'bhima.db');
         print('Location: $location');
         // Run the CREATE TABLE statement on the database.
         await db.execute(
@@ -35,15 +35,20 @@ class BhimaDatabase {
             "group_name" TEXT,
             "depot_text" TEXT,
             "depot_uuid" TEXT,
+            "is_asset" NUMERIC,
+            "barcode" TEXT,
+            "serial_number" TEXT,
+            "reference_number" TEXT,
+            "manufacturer_brand" TEXT,
+            "manufacturer_model" TEXT,
             "unit_cost" NUMERIC,
             "quantity" NUMERIC,
             "avg_consumption" NUMERIC,
-            "lifetime" NUMERIC,
-            "lifetime_lot" NUMERIC,
             "exhausted" NUMERIC,
             "expired" NUMERIC,
             "near_expiration" NUMERIC,
-            "expiration_date" TEXT
+            "expiration_date" TEXT,
+            "entry_date" TEXT
           )
           ''',
         );

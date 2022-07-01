@@ -14,7 +14,7 @@ bool? parseBool(value) {
 }
 
 DateTime? parseDate(value) {
-  if (value == '' || value == 'null') {
+  if (value == '' || value == 'null' || value == null) {
     return null;
   } else {
     return DateTime.parse(value.substring(0, 10));
@@ -27,4 +27,8 @@ dynamic nullToZerro(value) {
   } else {
     return value;
   }
+}
+
+bool stringNotNull(String? value) {
+  return value != 'null' && value != '' && value != null;
 }
