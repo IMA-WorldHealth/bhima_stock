@@ -208,7 +208,7 @@ class _HomePageState extends State<HomePage> {
                       padding: const EdgeInsets.all(8.0),
                       child: ElevatedButton(
                         onPressed: () {
-                          print('Click on Entree de stock');
+                          Navigator.pushNamed(context, '/stock_entry');
                         },
                         style: btnStyle,
                         child: Row(

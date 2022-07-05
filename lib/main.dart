@@ -1,7 +1,9 @@
 import 'package:bhima_collect/providers/current_depot_provider.dart';
+import 'package:bhima_collect/providers/entry_movement.dart';
 import 'package:bhima_collect/screens/depot.dart';
 import 'package:bhima_collect/screens/home.dart';
 import 'package:bhima_collect/screens/settings.dart';
+import 'package:bhima_collect/screens/stock_entry.dart';
 import 'package:bhima_collect/screens/stock_list.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +12,7 @@ void main() {
   runApp(MultiProvider(
     providers: [
       ChangeNotifierProvider(create: (_) => CurrentDepotProvider()),
+      ChangeNotifierProvider(create: (_) => EntryMovement()),
     ],
     child: const MyApp(),
   ));
@@ -44,6 +47,7 @@ class _MyAppState extends State<MyApp> {
         '/depots': (context) => const ConfigureDepotPage(),
         '/settings': (context) => const SettingsPage(),
         '/stock': (context) => StockListPage(),
+        '/stock_entry': (context) => StockEntryPage(),
       },
     );
   }

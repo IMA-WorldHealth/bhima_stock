@@ -190,7 +190,8 @@ class _StockListPageState extends State<StockListPage> {
         trailing: Text(barcode),
       );
     } else {
-      return const Divider();
+      // Empty Widget
+      return Row();
     }
   }
 
