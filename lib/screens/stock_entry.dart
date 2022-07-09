@@ -3,6 +3,7 @@ import 'package:bhima_collect/providers/entry_movement.dart';
 import 'package:bhima_collect/services/db.dart';
 import 'package:date_format/date_format.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
@@ -131,6 +132,12 @@ class _StockEntryPageState extends State<StockEntryPage> {
               onPressed: () {
                 // Validate returns true if the form is valid, or false otherwise.
                 if (_formKey.currentState!.validate()) {
+                  if (_controller.page == 0) {
+                    Provider.of<EntryMovement>(context, listen: false)
+                        .setDocumentReference = _txtReference.text;
+                    Provider.of<EntryMovement>(context, listen: false)
+                        .setTotalItems = int.parse(_txtQuantity.text);
+                  }
                   _controller.nextPage(duration: _kDuration, curve: _kCurve);
                 }
               },
@@ -181,17 +188,24 @@ class _StockEntryPageState extends State<StockEntryPage> {
         return _loadInventories(pattern);
       },
       itemBuilder: (context, Lot suggestion) {
-        return Card(
-          child: ListTile(
-            title: Text(suggestion.text ?? ''),
-            subtitle: Text(suggestion.code ?? ''),
-          ),
+        return Column(
+          children: [
+            ListTile(
+              title: Text(suggestion.text ?? ''),
+              subtitle: Text(suggestion.code ?? ''),
+            ),
+            const Divider(
+              height: 2,
+            )
+          ],
         );
       },
       onSuggestionSelected: (Lot suggestion) {
         typeAheadController.text = suggestion.text ?? '';
         Provider.of<EntryMovement>(context, listen: false)
             .setLot(index, 'inventory_uuid', suggestion.inventory_uuid);
+        Provider.of<EntryMovement>(context, listen: false)
+            .setLot(index, 'inventory_text', suggestion.text);
       },
     );
   }
@@ -221,17 +235,24 @@ class _StockEntryPageState extends State<StockEntryPage> {
         return await _loadInventoryLots(pattern);
       },
       itemBuilder: (context, Lot suggestion) {
-        return Card(
-          child: ListTile(
-            title: Text(suggestion.label ?? ''),
-            subtitle: Text(suggestion.expiration_date.toString()),
-          ),
+        return Column(
+          children: [
+            ListTile(
+              title: Text(suggestion.label ?? ''),
+              subtitle: Text(suggestion.expiration_date.toString()),
+            ),
+            const Divider(
+              height: 2,
+            )
+          ],
         );
       },
       onSuggestionSelected: (Lot suggestion) {
         lotTypeAheadController.text = suggestion.label ?? '';
         Provider.of<EntryMovement>(context, listen: false)
             .setLot(index, 'lot_uuid', suggestion.uuid);
+        Provider.of<EntryMovement>(context, listen: false)
+            .setLot(index, 'lot_label', suggestion.label);
       },
     );
   }
@@ -285,25 +306,16 @@ class _StockEntryPageState extends State<StockEntryPage> {
             labelText: "Nombre d'items",
           ),
           validator: (value) {
-            if (value == null ||
-                value.isEmpty ||
-                int.parse(value).runtimeType != int) {
+            if (value == null || value.isEmpty) {
               return "Veuillez saisir le nombre des items";
             }
             return null;
           },
           keyboardType: TextInputType.number,
+          inputFormatters: <TextInputFormatter>[
+            FilteringTextInputFormatter.digitsOnly
+          ],
         ),
-        ElevatedButton(
-            onPressed: () {
-              if (_formKey.currentState!.validate()) {
-                Provider.of<EntryMovement>(context, listen: false)
-                    .setDocumentReference = _txtReference.text;
-                Provider.of<EntryMovement>(context, listen: false)
-                    .setTotalItems = int.parse(_txtQuantity.text);
-              }
-            },
-            child: const Text('Valider'))
       ],
     );
   }
@@ -333,6 +345,10 @@ class _StockEntryPageState extends State<StockEntryPage> {
             return null;
           },
           controller: txtQuantity,
+          keyboardType: TextInputType.number,
+          inputFormatters: <TextInputFormatter>[
+            FilteringTextInputFormatter.digitsOnly
+          ],
         ),
       ],
     );
@@ -343,6 +359,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
         Provider.of<EntryMovement>(context).documentReference;
     var date = Provider.of<EntryMovement>(context).date;
     var totalItems = Provider.of<EntryMovement>(context).totalItems;
+    var lots = Provider.of<EntryMovement>(context).lots;
     return Card(
       child: Column(
         children: [
@@ -358,6 +375,22 @@ class _StockEntryPageState extends State<StockEntryPage> {
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Text('Nombre des items: $totalItems'),
           ),
+          Expanded(
+              child: ListView.builder(
+            itemCount: lots.length,
+            itemBuilder: (context, index) {
+              if (lots.isNotEmpty) {
+                var value = lots[index];
+                return ListTile(
+                  title: Text(value['inventory_text']),
+                  subtitle: Text(value['lot_label']),
+                  trailing: Chip(label: Text(value['quantity'])),
+                );
+              } else {
+                return Row();
+              }
+            },
+          )),
           ElevatedButton.icon(
             onPressed: () {},
             icon: const Icon(Icons.check_circle),
