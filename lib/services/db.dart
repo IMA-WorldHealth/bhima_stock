@@ -15,8 +15,7 @@ class BhimaDatabase {
       join(await getDatabasesPath(), 'bhima.db'),
       // When the database is first created, create a table to store depots.
       onCreate: (db, version) async {
-        var location = join(await getDatabasesPath(), 'bhima.db');
-        print('Location: $location');
+        join(await getDatabasesPath(), 'bhima.db');
         // Run the CREATE TABLE statement on the database.
         await db.execute(
           'CREATE TABLE depot(uuid TEXT PRIMARY KEY, "text" TEXT)',
@@ -25,7 +24,7 @@ class BhimaDatabase {
         await db.execute(
           '''
           CREATE TABLE lot(
-            "uuid" TEXT PRIMARY KEY,
+            "uuid" TEXT,
             "label" TEXT,
             "lot_description" TEXT,
             "code" TEXT,
@@ -48,7 +47,8 @@ class BhimaDatabase {
             "expired" NUMERIC,
             "near_expiration" NUMERIC,
             "expiration_date" TEXT,
-            "entry_date" TEXT
+            "entry_date" TEXT,
+            PRIMARY KEY ("uuid", "depot_uuid")
           )
           ''',
         );

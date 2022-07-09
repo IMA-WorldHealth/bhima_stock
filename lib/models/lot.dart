@@ -130,6 +130,94 @@ class Lot {
     return collection;
   }
 
+  // List of unique inventories
+  static Future<List<Lot>> inventories(
+      dynamic database, String depot_uuid) async {
+    // Get a reference to the database.
+    final db = await database;
+
+    // Query the table for all The lot.
+    final List<Map<String, dynamic>> maps = await db.rawQuery(
+        'SELECT * FROM lot WHERE lot.depot_uuid = ? GROUP BY lot.inventory_uuid;',
+        [depot_uuid]);
+
+    // Convert the List<Map<String, dynamic> into a List<Lot>.
+    List<Lot> collection = List.generate(maps.length, (i) {
+      return Lot(
+        uuid: maps[i]['uuid'],
+        label: maps[i]['label'],
+        lot_description: maps[i]['lot_description'],
+        code: maps[i]['code'],
+        inventory_uuid: maps[i]['inventory_uuid'],
+        text: maps[i]['text'],
+        unit_type: maps[i]['unit_type'],
+        group_name: maps[i]['group_name'],
+        depot_text: maps[i]['depot_text'],
+        depot_uuid: maps[i]['depot_uuid'],
+        is_asset: maps[i]['is_asset'],
+        barcode: maps[i]['barcode'],
+        serial_number: maps[i]['serial_number'],
+        reference_number: maps[i]['reference_number'],
+        manufacturer_brand: maps[i]['manufacturer_brand'],
+        manufacturer_model: maps[i]['manufacturer_model'],
+        unit_cost: maps[i]['unit_cost'],
+        quantity: maps[i]['quantity'],
+        avg_consumption: maps[i]['avg_consumption'],
+        exhausted: parseBool(maps[i]['exhausted']),
+        expired: parseBool(maps[i]['expired']),
+        near_expiration: parseBool(maps[i]['near_expiration']),
+        expiration_date: parseDate(maps[i]['expiration_date']),
+        entry_date: parseDate(maps[i]['entry_date']),
+      );
+    });
+
+    return collection;
+  }
+
+  // List of unique inventories
+  static Future<List<Lot>> inventoryLots(
+      dynamic database, String depot_uuid, String inventoryUuid) async {
+    // Get a reference to the database.
+    final db = await database;
+
+    // Query the table for all The lot.
+    final List<Map<String, dynamic>> maps = await db.rawQuery(
+        'SELECT * FROM lot WHERE depot_uuid = ? AND inventory_uuid = ? GROUP BY uuid;',
+        [depot_uuid, inventoryUuid]);
+
+    // Convert the List<Map<String, dynamic> into a List<Lot>.
+    List<Lot> collection = List.generate(maps.length, (i) {
+      return Lot(
+        uuid: maps[i]['uuid'],
+        label: maps[i]['label'],
+        lot_description: maps[i]['lot_description'],
+        code: maps[i]['code'],
+        inventory_uuid: maps[i]['inventory_uuid'],
+        text: maps[i]['text'],
+        unit_type: maps[i]['unit_type'],
+        group_name: maps[i]['group_name'],
+        depot_text: maps[i]['depot_text'],
+        depot_uuid: maps[i]['depot_uuid'],
+        is_asset: maps[i]['is_asset'],
+        barcode: maps[i]['barcode'],
+        serial_number: maps[i]['serial_number'],
+        reference_number: maps[i]['reference_number'],
+        manufacturer_brand: maps[i]['manufacturer_brand'],
+        manufacturer_model: maps[i]['manufacturer_model'],
+        unit_cost: maps[i]['unit_cost'],
+        quantity: maps[i]['quantity'],
+        avg_consumption: maps[i]['avg_consumption'],
+        exhausted: parseBool(maps[i]['exhausted']),
+        expired: parseBool(maps[i]['expired']),
+        near_expiration: parseBool(maps[i]['near_expiration']),
+        expiration_date: parseDate(maps[i]['expiration_date']),
+        entry_date: parseDate(maps[i]['entry_date']),
+      );
+    });
+
+    return collection;
+  }
+
   // Define a function that inserts lot into the database
   static Future<void> insertLot(dynamic database, Lot lot) async {
     final db = await database;

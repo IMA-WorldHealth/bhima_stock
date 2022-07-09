@@ -22,23 +22,22 @@ class EntryMovement extends ChangeNotifier {
   }
 
   void setLot(int index, String field, dynamic value) {
-    if (lots[index] != null && lots[index][field] != null) {
+    if (lots[index] == null) {
+      lots[index] = {};
       lots[index][field] = value;
-      notifyListeners();
+    } else {
+      lots[index][field] = value;
     }
   }
 
-  void addLot() {
-    lots.add({'inventory_uuid': '', 'lot_uuid': '', 'quantity': 0});
-    notifyListeners();
+  dynamic getLotValue(int index, String field) {
+    return lots[index] != null && lots[index][field] != null
+        ? lots[index][field]
+        : '';
   }
 
   void createLots() {
     lots = List.filled(totalItems, null, growable: false);
-  }
-
-  int lastIndex() {
-    return lots.length - 1;
   }
 
   void reset() {
