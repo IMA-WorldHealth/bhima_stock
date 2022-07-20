@@ -52,6 +52,43 @@ class BhimaDatabase {
           )
           ''',
         );
+
+        // The inventory_lot table
+        await db.execute(
+          '''
+          CREATE TABLE inventory_lot(
+            "uuid" TEXT,
+            "label" TEXT,
+            "code" TEXT,
+            "inventory_uuid" TEXT,
+            "text" TEXT,
+            "unit_type" TEXT,
+            "group_name" TEXT,
+            "unit_cost" NUMERIC,
+            "expiration_date" TEXT,
+            "entry_date" TEXT,
+            PRIMARY KEY ("uuid")
+          )
+          ''',
+        );
+
+        // The inventory TABLE
+        await db.execute(
+          '''
+          CREATE TABLE inventory(
+            "uuid" TEXT,
+            "label" TEXT,
+            "code" TEXT,
+            "unit" TEXT,
+            "type" TEXT,
+            "group_name" TEXT,
+            "is_asset" NUMERIC,
+            "manufacturer_brand" TEXT,
+            "manufacturer_model" TEXT,
+            PRIMARY KEY ("uuid")
+          )
+          ''',
+        );
       },
       // Set the version. This executes the onCreate function and provides a
       // path to perform database upgrades and downgrades.

@@ -86,7 +86,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
       return pages;
     }
 
-    var pageBody = Column(
+    var pageViews = Column(
       children: <Widget>[
         Padding(
           padding: const EdgeInsets.all(5),
@@ -110,44 +110,42 @@ class _StockEntryPageState extends State<StockEntryPage> {
       ],
     );
 
-    var globalForm = Form(
+    var pageBody = Form(
       key: _formKey,
-      child: pageBody,
+      child: pageViews,
     );
 
-    Widget pageBottom() {
-      return Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            ElevatedButton.icon(
-              onPressed: () {
-                _controller.previousPage(duration: _kDuration, curve: _kCurve);
-              },
-              label: const Text('Retour'),
-              icon: const Icon(Icons.arrow_left_outlined),
-            ),
-            ElevatedButton.icon(
-              onPressed: () {
-                // Validate returns true if the form is valid, or false otherwise.
-                if (_formKey.currentState!.validate()) {
-                  if (_controller.page == 0) {
-                    Provider.of<EntryMovement>(context, listen: false)
-                        .setDocumentReference = _txtReference.text;
-                    Provider.of<EntryMovement>(context, listen: false)
-                        .setTotalItems = int.parse(_txtQuantity.text);
-                  }
-                  _controller.nextPage(duration: _kDuration, curve: _kCurve);
+    var pageBottom = Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          ElevatedButton.icon(
+            onPressed: () {
+              _controller.previousPage(duration: _kDuration, curve: _kCurve);
+            },
+            label: const Text('Retour'),
+            icon: const Icon(Icons.arrow_left_outlined),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              // Validate returns true if the form is valid, or false otherwise.
+              if (_formKey.currentState!.validate()) {
+                if (_controller.page == 0) {
+                  Provider.of<EntryMovement>(context, listen: false)
+                      .setDocumentReference = _txtReference.text;
+                  Provider.of<EntryMovement>(context, listen: false)
+                      .setTotalItems = int.parse(_txtQuantity.text);
                 }
-              },
-              label: const Text('Suivant'),
-              icon: const Icon(Icons.arrow_right_outlined),
-            ),
-          ],
-        ),
-      );
-    }
+                _controller.nextPage(duration: _kDuration, curve: _kCurve);
+              }
+            },
+            label: const Text('Suivant'),
+            icon: const Icon(Icons.arrow_right_outlined),
+          ),
+        ],
+      ),
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -163,8 +161,8 @@ class _StockEntryPageState extends State<StockEntryPage> {
           },
         ),
       ),
-      body: globalForm,
-      bottomNavigationBar: pageBottom(),
+      body: pageBody,
+      bottomNavigationBar: pageBottom,
     );
   }
 
@@ -364,15 +362,15 @@ class _StockEntryPageState extends State<StockEntryPage> {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.only(top: 16, bottom: 4),
+            padding: const EdgeInsets.only(top: 8, bottom: 0),
             child: Text('Date: ${formatDate(date, _customDateFormat)}'),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
+            padding: const EdgeInsets.symmetric(vertical: 0),
             child: Text('Reference: $documentReference'),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
+            padding: const EdgeInsets.only(bottom: 8),
             child: Text('Nombre des items: $totalItems'),
           ),
           Expanded(

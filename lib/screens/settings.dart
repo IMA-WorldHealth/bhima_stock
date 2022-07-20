@@ -1,6 +1,9 @@
 import 'package:bhima_collect/models/depot.dart';
+import 'package:bhima_collect/models/inventory_lot.dart';
+import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/services/connect.dart';
 import 'package:bhima_collect/services/db.dart';
+import 'package:bhima_collect/utilities/util.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -12,6 +15,7 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  final _formKey = GlobalKey<FormState>();
   var connexion = Connect();
   var txtServerUrl = TextEditingController();
   var txtUsername = TextEditingController();
@@ -19,7 +23,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
   bool _isButtonDisabled = false;
   bool _isConnectionSucceed = false;
+  bool _isSyncFailed = false;
   bool _isDepotSynced = false;
+  bool _isLotsImported = false;
   String _serverUrl = '';
   String _username = '';
   String _password = '';
@@ -44,6 +50,61 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future fetchLots() async {
+    try {
+      /**
+       * Include empty lots for having lots which are sent by not yet received
+       */
+      const lotDataUrl = '/stock/lots/depots?includeEmptyLot=1';
+      List lotsRaw = await connexion.api(lotDataUrl);
+
+      List<Lot> lots = lotsRaw.map((lot) {
+        return Lot(
+          uuid: lot['uuid'],
+          label: lot['label'],
+          lot_description: lot['lot_description'],
+          code: lot['code'],
+          inventory_uuid: lot['inventory_uuid'],
+          text: lot['text'],
+          unit_type: lot['unit_type'],
+          group_name: lot['group_name'],
+          depot_text: lot['depot_text'],
+          depot_uuid: lot['depot_uuid'],
+          is_asset: lot['is_asset'],
+          barcode: lot['barcode'],
+          serial_number: lot['serial_number'],
+          reference_number: lot['reference_number'],
+          manufacturer_brand: lot['manufacturer_brand'],
+          manufacturer_model: lot['manufacturer_model'],
+          unit_cost: lot['unit_cost'],
+          quantity: lot['quantity'],
+          avg_consumption: lot['avg_consumption'],
+          exhausted: parseBool(lot['exhausted']),
+          expired: parseBool(lot['expired']),
+          near_expiration: parseBool(lot['near_expiration']),
+          expiration_date: parseDate(lot['expiration_date']),
+          entry_date: parseDate(lot['entry_date']),
+        );
+      }).toList();
+
+      // open the database
+      var database = BhimaDatabase.open();
+      // clean previous lots
+      Lot.clean(database);
+      // write new entries
+      lots.forEach((lot) async {
+        await Lot.insertLot(database, lot);
+      });
+
+      setState(() {
+        _isLotsImported = true;
+      });
+    } catch (e) {
+      print(
+          'Error during fetch of lots : $e, $_serverUrl, $_username, $_password');
+    }
+  }
+
   Future syncDepots() async {
     _isDepotSynced = false;
     try {
@@ -63,9 +124,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
       // open the database
       var database = BhimaDatabase.open();
-      // clean previous depots
+      // clean previous data
       Depot.clean(database);
-      // write new entries
+      // write new fresh depots entries
       userDepotList.forEach((depot) async {
         await Depot.insertDepot(database, depot);
       });
@@ -81,25 +142,32 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future submit() async {
-    try {
-      setState(() {
-        _isButtonDisabled = true;
-      });
+    if (_formKey.currentState!.validate()) {
+      try {
+        setState(() {
+          _isButtonDisabled = true;
+        });
 
-      // check the connection to the server
-      await checkServerConnection();
+        // check the connection to the server
+        await checkServerConnection();
 
-      // sync the users depots
-      await syncDepots();
+        // sync the users depots
+        await syncDepots();
 
-      // save settings as preferences
-      await _saveSettings();
+        // fetch lots
+        await fetchLots();
 
-      setState(() {
-        _isButtonDisabled = false;
-      });
-    } catch (e) {
-      print(e);
+        // save settings as preferences
+        await _saveSettings();
+
+        setState(() {
+          _isButtonDisabled = false;
+        });
+      } catch (e) {
+        setState(() {
+          _isSyncFailed = true;
+        });
+      }
     }
   }
 
@@ -142,80 +210,113 @@ class _SettingsPageState extends State<SettingsPage> {
           },
         ),
       ),
-      body: ListView(
-        children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
-            child: TextFormField(
-              decoration: const InputDecoration(
-                border: UnderlineInputBorder(),
-                labelText: 'Enter the server URL',
-                icon: Icon(Icons.public),
+      body: Form(
+          key: _formKey,
+          child: ListView(
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                ),
+                child: TextFormField(
+                  decoration: const InputDecoration(
+                    border: UnderlineInputBorder(),
+                    labelText: 'Enter the server URL',
+                    icon: Icon(Icons.public),
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      _serverUrl = value;
+                    });
+                  },
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return "Veuillez saisir l'URL";
+                    }
+                    return null;
+                  },
+                  controller: txtServerUrl,
+                ),
               ),
-              onChanged: (value) {
-                setState(() {
-                  _serverUrl = value;
-                });
-              },
-              controller: txtServerUrl,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
-            child: TextFormField(
-              decoration: const InputDecoration(
-                border: UnderlineInputBorder(),
-                labelText: 'Enter the Username',
-                icon: Icon(Icons.person),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                ),
+                child: TextFormField(
+                  decoration: const InputDecoration(
+                    border: UnderlineInputBorder(),
+                    labelText: 'Enter the Username',
+                    icon: Icon(Icons.person),
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      _username = value;
+                    });
+                  },
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return "Veuillez saisir l'utilisateur";
+                    }
+                    return null;
+                  },
+                  controller: txtUsername,
+                ),
               ),
-              onChanged: (value) {
-                setState(() {
-                  _username = value;
-                });
-              },
-              controller: txtUsername,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
-            child: TextFormField(
-              decoration: const InputDecoration(
-                border: UnderlineInputBorder(),
-                labelText: 'Enter the password',
-                icon: Icon(Icons.lock_outline),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                ),
+                child: TextFormField(
+                  decoration: const InputDecoration(
+                    border: UnderlineInputBorder(),
+                    labelText: 'Enter the password',
+                    icon: Icon(Icons.lock_outline),
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      _password = value;
+                    });
+                  },
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return "Veuillez saisir le mot de passe";
+                    }
+                    return null;
+                  },
+                  controller: txtPassword,
+                  obscureText: true,
+                  enableSuggestions: false,
+                  autocorrect: false,
+                ),
               ),
-              onChanged: (value) {
-                setState(() {
-                  _password = value;
-                });
-              },
-              controller: txtPassword,
-              obscureText: true,
-              enableSuggestions: false,
-              autocorrect: false,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: ElevatedButton(
-              onPressed: () async {
-                await submit();
-              },
-              child: _isButtonDisabled
-                  ? const Text('En cours de traitement...')
-                  : const Text('Soumettre'),
-            ),
-          ),
-          Center(
-            child: _isConnectionSucceed && _isDepotSynced
-                ? const Text(
-                    'Synchronisation depot OK',
-                    style: TextStyle(color: Colors.green),
-                  )
-                : null,
-          )
-        ],
-      ),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: ElevatedButton(
+                  onPressed: _isButtonDisabled
+                      ? null
+                      : () async {
+                          await submit();
+                        },
+                  child: _isButtonDisabled
+                      ? const Text('En cours de traitement...')
+                      : const Text('Soumettre'),
+                ),
+              ),
+              Center(
+                child: _isDepotSynced && _isLotsImported
+                    ? const Text(
+                        'Synchronisation des données réussie',
+                        style: TextStyle(color: Colors.green),
+                      )
+                    : _isSyncFailed
+                        ? const Text(
+                            'Echec de synchronisation',
+                            style: TextStyle(color: Colors.red),
+                          )
+                        : null,
+              )
+            ],
+          )),
     );
   }
 }
