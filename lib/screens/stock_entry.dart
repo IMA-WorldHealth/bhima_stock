@@ -171,8 +171,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
     Future<List<Lot>> _loadInventories(String pattern) async {
       List<Lot> allLots = await Lot.inventories(database, _selectedDepotUuid);
       return allLots
-          .where((element) =>
-              element.quantity! > 0 && element.text!.contains(pattern) == true)
+          .where((element) => element.text!.contains(pattern) == true)
           .toList();
     }
 
@@ -218,8 +217,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
       List<Lot> allLots =
           await Lot.inventoryLots(database, _selectedDepotUuid, inventoryUuid);
       return allLots
-          .where((element) =>
-              element.quantity! > 0 && element.text?.contains(pattern) == true)
+          .where((element) => element.text?.contains(pattern) == true)
           .toList();
     }
 
@@ -237,7 +235,9 @@ class _StockEntryPageState extends State<StockEntryPage> {
           children: [
             ListTile(
               title: Text(suggestion.label ?? ''),
-              subtitle: Text(suggestion.expiration_date.toString()),
+              subtitle: suggestion.expiration_date == null
+                  ? null
+                  : Text(suggestion.expiration_date.toString()),
             ),
             const Divider(
               height: 2,
@@ -287,8 +287,9 @@ class _StockEntryPageState extends State<StockEntryPage> {
         TextFormField(
           controller: _txtReference,
           decoration: const InputDecoration(
+            prefix: Text('SM.8. '),
             border: UnderlineInputBorder(),
-            labelText: 'Ref. Bon de sortie',
+            labelText: 'Numéro bon de sortie',
           ),
           validator: (value) {
             if (value == null || value.isEmpty) {
@@ -296,6 +297,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
             }
             return null;
           },
+          keyboardType: TextInputType.number,
         ),
         TextFormField(
           controller: _txtQuantity,

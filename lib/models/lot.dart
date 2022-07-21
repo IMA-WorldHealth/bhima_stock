@@ -138,7 +138,7 @@ class Lot {
 
     // Query the table for all The lot.
     final List<Map<String, dynamic>> maps = await db.rawQuery(
-        'SELECT * FROM lot WHERE lot.depot_uuid = ? GROUP BY lot.inventory_uuid;',
+        'SELECT * FROM lot WHERE lot.depot_uuid = ? GROUP BY lot.inventory_uuid ORDER BY lot.text;',
         [depot_uuid]);
 
     // Convert the List<Map<String, dynamic> into a List<Lot>.
@@ -182,7 +182,7 @@ class Lot {
 
     // Query the table for all The lot.
     final List<Map<String, dynamic>> maps = await db.rawQuery(
-        'SELECT * FROM lot WHERE depot_uuid = ? AND inventory_uuid = ? GROUP BY uuid;',
+        'SELECT * FROM lot WHERE depot_uuid = ? AND inventory_uuid = ? GROUP BY uuid ORDER BY label ASC;',
         [depot_uuid, inventoryUuid]);
 
     // Convert the List<Map<String, dynamic> into a List<Lot>.
