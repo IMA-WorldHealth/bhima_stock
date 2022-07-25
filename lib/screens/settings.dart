@@ -1,5 +1,4 @@
 import 'package:bhima_collect/models/depot.dart';
-import 'package:bhima_collect/models/inventory_lot.dart';
 import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/services/connect.dart';
 import 'package:bhima_collect/services/db.dart';

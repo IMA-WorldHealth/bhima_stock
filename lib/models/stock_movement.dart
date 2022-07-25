@@ -5,7 +5,7 @@ class StockMovement {
   String? uuid;
   String? depotUuid;
   String? lotUuid;
-  String? documentUuid;
+  String? reference;
   String? entityUuid;
   int? periodId;
   int? userId;
@@ -15,12 +15,13 @@ class StockMovement {
   String? description;
   int quantity = 0;
   double unitCost = 0;
+  int? isSync = 0;
 
   StockMovement({
     required this.uuid,
     required this.depotUuid,
     required this.lotUuid,
-    required this.documentUuid,
+    required this.reference,
     required this.entityUuid,
     required this.periodId,
     required this.userId,
@@ -37,22 +38,23 @@ class StockMovement {
       'uuid': uuid,
       'depotUuid': depotUuid,
       'lotUuid': lotUuid,
-      'documentUuid': documentUuid,
+      'reference': reference,
       'entityUuid': entityUuid,
       'periodId': periodId,
       'userId': userId,
       'fluxId': fluxId,
       'isExit': isExit,
-      'date': date,
+      'date': date.toString(),
       'description': description,
       'quantity': quantity,
-      'unitCost': unitCost
+      'unitCost': unitCost,
+      'isSync': isSync,
     };
   }
 
   @override
   String toString() {
-    return 'Depot{uuid: $uuid, depotUuid: $depotUuid, lotUuid: $lotUuid, documentUuid: $documentUuid, entityUuid: $entityUuid, periodId: $periodId, fluxId: $fluxId, isExit: $isExit, date: $date, description: $description, quantity: $quantity, unitCost: $unitCost}';
+    return 'Depot{uuid: $uuid, depotUuid: $depotUuid, lotUuid: $lotUuid, reference: $reference, entityUuid: $entityUuid, periodId: $periodId, fluxId: $fluxId, isExit: $isExit, date: $date, description: $description, quantity: $quantity, unitCost: $unitCost}';
   }
 
   String? get getUuid {
@@ -67,8 +69,8 @@ class StockMovement {
     return lotUuid;
   }
 
-  String? get getDocumentUuid {
-    return documentUuid;
+  String? get getReference {
+    return reference;
   }
 
   String? get getEntityUuid {
@@ -113,7 +115,7 @@ class StockMovement {
   }
 
   // A method that retrieves all the StockMovement from the stock_movement table.
-  static Future<List<StockMovement>> depots(dynamic database) async {
+  static Future<List<StockMovement>> stockMovements(dynamic database) async {
     // Get a reference to the database.
     final db = await database;
 
@@ -124,7 +126,7 @@ class StockMovement {
     return List.generate(maps.length, (i) {
       return StockMovement(
         uuid: maps[i]['uuid'],
-        documentUuid: maps[i]['documentUuid'],
+        reference: maps[i]['reference'],
         depotUuid: maps[i]['depotUuid'],
         entityUuid: maps[i]['entityUuid'],
         lotUuid: maps[i]['lotUuid'],

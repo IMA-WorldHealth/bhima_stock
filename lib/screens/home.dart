@@ -111,6 +111,8 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future syncStockMovements() async {}
+
   Future syncBtnClicked() async {
     if (_isSyncing) {
       return null;

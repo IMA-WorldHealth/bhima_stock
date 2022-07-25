@@ -1,12 +1,15 @@
 import 'package:bhima_collect/models/lot.dart';
+import 'package:bhima_collect/models/stock_movement.dart';
 import 'package:bhima_collect/providers/entry_movement.dart';
 import 'package:bhima_collect/services/db.dart';
+import 'package:bhima_collect/utilities/util.dart';
 import 'package:date_format/date_format.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
+import 'package:uuid/uuid.dart';
 
 class StockEntryPage extends StatefulWidget {
   StockEntryPage({Key? key}) : super(key: key);
@@ -17,7 +20,9 @@ class StockEntryPage extends StatefulWidget {
 
 class _StockEntryPageState extends State<StockEntryPage> {
   var database = BhimaDatabase.open();
+  final _uuid = const Uuid();
   final _formKey = GlobalKey<FormState>();
+  final _STOCK_FROM_OTHER_DEPOT = 2;
   final PageController _controller = PageController(
     initialPage: 0,
   );
@@ -28,6 +33,9 @@ class _StockEntryPageState extends State<StockEntryPage> {
 
   String _selectedDepotUuid = '';
   String _selectedDepotText = '';
+  int? _userId;
+  bool _savingSucceed = false;
+
   DateTime _selectedDate = DateTime.now();
   final _customDateFormat = [dd, ' ', MM, ' ', yyyy];
   static const _kDuration = Duration(milliseconds: 300);
@@ -54,6 +62,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
     setState(() {
       _selectedDepotUuid = (prefs.getString('selected_depot_uuid') ?? '');
       _selectedDepotText = (prefs.getString('selected_depot_text') ?? '');
+      _userId = prefs.getInt('user_id');
     });
   }
 
@@ -171,7 +180,9 @@ class _StockEntryPageState extends State<StockEntryPage> {
     Future<List<Lot>> _loadInventories(String pattern) async {
       List<Lot> allLots = await Lot.inventories(database, _selectedDepotUuid);
       return allLots
-          .where((element) => element.text!.contains(pattern) == true)
+          .where((element) =>
+              element.text!.toLowerCase().contains(pattern.toLowerCase()) ==
+              true)
           .toList();
     }
 
@@ -251,6 +262,8 @@ class _StockEntryPageState extends State<StockEntryPage> {
             .setLot(index, 'lot_uuid', suggestion.uuid);
         Provider.of<EntryMovement>(context, listen: false)
             .setLot(index, 'lot_label', suggestion.label);
+        Provider.of<EntryMovement>(context, listen: false)
+            .setLot(index, 'unit_cost', suggestion.unit_cost);
       },
     );
   }
@@ -360,6 +373,58 @@ class _StockEntryPageState extends State<StockEntryPage> {
     var date = Provider.of<EntryMovement>(context).date;
     var totalItems = Provider.of<EntryMovement>(context).totalItems;
     var lots = Provider.of<EntryMovement>(context).lots;
+
+    Future batchInsertMovements(var lots) async {
+      return lots.forEach((element) async {
+        var movement = StockMovement(
+          uuid: _uuid.v4(),
+          depotUuid: _selectedDepotUuid,
+          lotUuid: element['lot_uuid'],
+          reference: 'SM.8.$documentReference',
+          entityUuid: '',
+          periodId: int.parse(formatDate(date, [yyyy, mm])),
+          userId: _userId,
+          fluxId: _STOCK_FROM_OTHER_DEPOT,
+          isExit: 0,
+          date: date,
+          description: 'RECEPTION',
+          quantity: int.parse(element['quantity']),
+          unitCost: element['unit_cost'],
+        );
+        await StockMovement.insertMovement(database, movement);
+      });
+    }
+
+    Future save() async {
+      try {
+        setState(() {
+          _savingSucceed = false;
+        });
+
+        // insert each data into the stock_movement table
+        await batchInsertMovements(lots);
+
+        var snackBar = const SnackBar(
+          content: Text('Entrée de stock réussie ✅'),
+        );
+
+        // Find the ScaffoldMessenger in the widget tree
+        // and use it to show a SnackBar.
+        ScaffoldMessenger.of(context).showSnackBar(snackBar);
+
+        // reset the provider
+        Provider.of<EntryMovement>(context).reset();
+
+        setState(() {
+          _savingSucceed = true;
+        });
+      } catch (e) {
+        setState(() {
+          _savingSucceed = false;
+        });
+      }
+    }
+
     return Card(
       child: Column(
         children: [
@@ -379,7 +444,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
               child: ListView.builder(
             itemCount: lots.length,
             itemBuilder: (context, index) {
-              if (lots.isNotEmpty) {
+              if (lots.isNotEmpty && lots[index] != null) {
                 var value = lots[index];
                 return ListTile(
                   title: Text(value['inventory_text']),
@@ -392,7 +457,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
             },
           )),
           ElevatedButton.icon(
-            onPressed: () {},
+            onPressed: () => save(),
             icon: const Icon(Icons.check_circle),
             label: const Text('Confirmer'),
           ),
