@@ -395,15 +395,8 @@ class _StockEntryPageState extends State<StockEntryPage> {
       });
     }
 
-    Future save() async {
-      try {
-        setState(() {
-          _savingSucceed = false;
-        });
-
-        // insert each data into the stock_movement table
-        await batchInsertMovements(lots);
-
+    Future<dynamic> save() {
+      return batchInsertMovements(lots).then((value) {
         var snackBar = const SnackBar(
           content: Text('Entrée de stock réussie ✅'),
         );
@@ -413,16 +406,17 @@ class _StockEntryPageState extends State<StockEntryPage> {
         ScaffoldMessenger.of(context).showSnackBar(snackBar);
 
         // reset the provider
-        Provider.of<EntryMovement>(context).reset();
+        Provider.of<EntryMovement>(context, listen: false).reset();
+
+        // back to home
+        Navigator.pushNamed(context, '/');
 
         setState(() {
           _savingSucceed = true;
         });
-      } catch (e) {
-        setState(() {
-          _savingSucceed = false;
-        });
-      }
+
+        return true;
+      });
     }
 
     return Card(
