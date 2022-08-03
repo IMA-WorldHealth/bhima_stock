@@ -196,39 +196,15 @@ class StockMovement {
     final db = await database;
 
     // Get data from local movements and latest online data received
-    // String query = '''
-    //   SELECT z.depot_uuid, z.inventory_text AS text, z.lot_label AS label,
-    //   SUM(IIF(isExit = 0, 1 * z.quantity, -1 * z.quantity)) quantity,
-    //   z.code, z.unit_type
-    //   FROM (
-    //     SELECT
-    //       i.uuid AS inventory_uuid, l.uuid AS lot_uuid,
-    //       m.depotUuid AS depot_uuid, i.label AS inventory_text, l.label AS lot_label,
-    //       SUM(IIF(isExit = 0, 1 * m.quantity, -1 * m.quantity)) quantity,
-    //       m.isExit, i.code, i.unit AS unit_type
-    //     FROM stock_movement m
-    //     JOIN inventory_lot l ON l.uuid = m.lotUuid
-    //     JOIN inventory i ON i.uuid = l.inventory_uuid
-    //     GROUP BY m.depotUuid, l.inventory_uuid, l.uuid
-    //     UNION ALL
-    //     SELECT
-    //       lot.inventory_uuid AS inventory_uuid, lot.uuid AS lot_uuid,
-    //       lot.depot_uuid AS depot_uuid, lot.text AS inventory_text, lot.label AS lot_label, lot.quantity,
-    //       0 AS isExit, lot.code, lot.unit_type AS unit_type
-    //     FROM lot
-    //     GROUP BY lot.depot_uuid, lot.inventory_uuid, lot.uuid
-    //   ) z
-    //   GROUP BY z.depot_uuid, z.inventory_uuid, z.lot_uuid;
-    // ''';
     String query = '''
       SELECT z.depot_uuid, z.inventory_text AS text, z.lot_label AS label,
-      SUM(IIF(isExit = 0, 1 * z.quantity, -1 * z.quantity)) quantity,
-      z.code, z.unit_type
+      SUM(z.quantity) quantity,
+      z.code, z.unit_type, z.isExit
       FROM (
         SELECT
           i.uuid AS inventory_uuid, l.uuid AS lot_uuid,
           m.depotUuid AS depot_uuid, i.label AS inventory_text, l.label AS lot_label,
-          SUM(IIF(isExit = 0, 1 * m.quantity, -1 * m.quantity)) quantity,
+          SUM(IIF(m.isExit = 0, 1 * m.quantity, -1 * m.quantity)) quantity,
           m.isExit, i.code, i.unit AS unit_type
         FROM stock_movement m
         JOIN inventory_lot l ON l.uuid = m.lotUuid
