@@ -1,4 +1,5 @@
 import 'package:bhima_collect/models/lot.dart';
+import 'package:bhima_collect/models/stock_movement.dart';
 import 'package:bhima_collect/services/db.dart';
 import 'package:bhima_collect/utilities/util.dart';
 import 'package:flutter/material.dart';
@@ -32,11 +33,19 @@ class _StockListPageState extends State<StockListPage> {
     });
   }
 
-  Stream<List<Lot>> _loadLots(String currentDepot) async* {
-    List<Lot> allLots = await Lot.lots(database);
+  // Stream<List<Lot>> _loadLots(String currentDepot) async* {
+  //   List<Lot> allLots = await Lot.lots(database);
+  //   yield allLots
+  //       .where((element) =>
+  //           element.depot_uuid == currentDepot && element.quantity! > 0)
+  //       .toList();
+  // }
+
+  Stream<List> _loadLots(String currentDepot) async* {
+    List allLots = await StockMovement.stockQuantity(database);
     yield allLots
         .where((element) =>
-            element.depot_uuid == currentDepot && element.quantity! > 0)
+            element['depot_uuid'] == currentDepot && element['quantity']! > 0)
         .toList();
   }
 
@@ -84,7 +93,7 @@ class _StockListPageState extends State<StockListPage> {
     //   }),
     // );
 
-    var streamBuilder = StreamBuilder<List<Lot>>(
+    var streamBuilder = StreamBuilder<List>(
       stream: _loadLots(_selectedDepotUuid),
       builder: ((context, snapshot) {
         switch (snapshot.connectionState) {
@@ -143,9 +152,8 @@ class _StockListPageState extends State<StockListPage> {
     );
   }
 
-  Widget createListView(
-      BuildContext context, AsyncSnapshot<List<Lot>> snapshot) {
-    List<Lot> values = snapshot.data ?? [];
+  Widget createListView(BuildContext context, AsyncSnapshot<List> snapshot) {
+    List values = snapshot.data ?? [];
     return ListView.builder(
       itemCount: values.length,
       itemBuilder: ((context, index) {
@@ -156,12 +164,12 @@ class _StockListPageState extends State<StockListPage> {
               child: Column(
                 children: [
                   ListTile(
-                    title: Text('${values[index].text}'),
-                    subtitle: Text('Code: ${values[index].code}'),
+                    title: Text('${values[index]['text']}'),
+                    subtitle: Text('Code: ${values[index]['code']}'),
                     trailing: Chip(
                       backgroundColor: Colors.green[200],
                       label: Text(
-                          'Qty: ${values[index].quantity} ${values[index].unit_type}'),
+                          'Qty: ${values[index]['quantity']} ${values[index]['unit_type']}'),
                     ),
                   ),
                   createAssetTile(values[index]),
@@ -175,14 +183,15 @@ class _StockListPageState extends State<StockListPage> {
     );
   }
 
-  Widget createAssetTile(Lot value) {
-    if (value.is_asset == 1) {
-      String barcode = value.barcode ?? '';
-      String serialNumber =
-          stringNotNull(value.serial_number) ? '${value.serial_number}' : '';
-      String manufacturerBrand = value.manufacturer_brand ?? '';
-      String manufacturerModel = stringNotNull(value.manufacturer_model)
-          ? ' - ${value.manufacturer_model}'
+  Widget createAssetTile(dynamic value) {
+    if (value['is_asset'] == 1) {
+      String barcode = value['barcode'] ?? '';
+      String serialNumber = stringNotNull(value['serial_number'])
+          ? '${value['serial_number']}'
+          : '';
+      String manufacturerBrand = value['manufacturer_brand'] ?? '';
+      String manufacturerModel = stringNotNull(value['manufacturer_model'])
+          ? ' - ${value['manufacturer_model']}'
           : '';
       return ListTile(
         title: Text('Brand: $manufacturerBrand $manufacturerModel'),
@@ -196,17 +205,17 @@ class _StockListPageState extends State<StockListPage> {
   }
 
   Widget createLotChip(value) {
-    String expirationDate = value.expiration_date != null
-        ? formatDate(value.expiration_date, [MM, '-', yyyy])
+    String expirationDate = value['expiration_date'] != null
+        ? formatDate(value['expiration_date'], [MM, '-', yyyy])
         : '';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
       child: Row(
         children: [
           Chip(
-            label: Text('Lot: ${value.label}'),
+            label: Text('Lot: ${value['label']}'),
           ),
-          if (value.expiration_date != null)
+          if (value['expiration_date'] != null)
             Chip(
               avatar: const Icon(Icons.timelapse_rounded),
               backgroundColor: Colors.orange[200],

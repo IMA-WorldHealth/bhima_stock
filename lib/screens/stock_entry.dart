@@ -369,18 +369,21 @@ class _StockEntryPageState extends State<StockEntryPage> {
 
   Widget submitPage() {
     var documentReference =
-        Provider.of<EntryMovement>(context).documentReference;
-    var date = Provider.of<EntryMovement>(context).date;
-    var totalItems = Provider.of<EntryMovement>(context).totalItems;
-    var lots = Provider.of<EntryMovement>(context).lots;
+        Provider.of<EntryMovement>(context, listen: false).documentReference;
+    var date = Provider.of<EntryMovement>(context, listen: false).date;
+    var totalItems =
+        Provider.of<EntryMovement>(context, listen: false).totalItems;
+    var lots = Provider.of<EntryMovement>(context, listen: false).lots;
 
     Future batchInsertMovements(var lots) async {
+      var movementUuid = _uuid.v4();
       return lots.forEach((element) async {
         var movement = StockMovement(
           uuid: _uuid.v4(),
+          movementUuid: movementUuid,
           depotUuid: _selectedDepotUuid,
           lotUuid: element['lot_uuid'],
-          reference: 'SM.8.$documentReference',
+          reference: documentReference,
           entityUuid: '',
           periodId: int.parse(formatDate(date, [yyyy, mm])),
           userId: _userId,
@@ -389,7 +392,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
           date: date,
           description: 'RECEPTION',
           quantity: int.parse(element['quantity']),
-          unitCost: element['unit_cost'],
+          unitCost: element['unit_cost'].toDouble(),
         );
         await StockMovement.insertMovement(database, movement);
       });

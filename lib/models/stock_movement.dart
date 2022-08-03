@@ -1,8 +1,11 @@
+import 'package:bhima_collect/models/inventory_lot.dart';
+import 'package:bhima_collect/utilities/util.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 
 class StockMovement {
   String? uuid;
+  String? movementUuid;
   String? depotUuid;
   String? lotUuid;
   String? reference;
@@ -19,6 +22,7 @@ class StockMovement {
 
   StockMovement({
     required this.uuid,
+    required this.movementUuid,
     required this.depotUuid,
     required this.lotUuid,
     required this.reference,
@@ -31,11 +35,13 @@ class StockMovement {
     required this.description,
     required this.quantity,
     required this.unitCost,
+    this.isSync,
   });
 
   Map<String, dynamic> toMap() {
     return {
       'uuid': uuid,
+      'movementUuid': movementUuid,
       'depotUuid': depotUuid,
       'lotUuid': lotUuid,
       'reference': reference,
@@ -54,7 +60,7 @@ class StockMovement {
 
   @override
   String toString() {
-    return 'Depot{uuid: $uuid, depotUuid: $depotUuid, lotUuid: $lotUuid, reference: $reference, entityUuid: $entityUuid, periodId: $periodId, fluxId: $fluxId, isExit: $isExit, date: $date, description: $description, quantity: $quantity, unitCost: $unitCost}';
+    return 'StockMovement{uuid: $uuid, depotUuid: $depotUuid, lotUuid: $lotUuid, reference: $reference, entityUuid: $entityUuid, periodId: $periodId, fluxId: $fluxId, isExit: $isExit, date: $date, description: $description, quantity: $quantity, unitCost: $unitCost}';
   }
 
   String? get getUuid {
@@ -114,6 +120,46 @@ class StockMovement {
     uuid = uuid;
   }
 
+  // json handlers
+  StockMovement.fromJson(Map<String, dynamic> json) {
+    uuid = json['uuid'];
+    movementUuid = json['movementUuid'];
+    reference = json['reference'];
+    depotUuid = json['depotUuid'];
+    entityUuid = json['entityUuid'];
+    lotUuid = json['lotUuid'];
+    periodId = json['periodId'];
+    fluxId = json['fluxId'];
+    userId = json['userId'];
+    description = json['description'];
+    unitCost = json['unitCost'];
+    quantity = json['quantity'];
+    date = parseDate(json['date']);
+    isExit = json['isExit'];
+    isSync = json['isSync'];
+  }
+
+  // json export
+  Map<String, dynamic> toJson() {
+    return {
+      'uuid': uuid,
+      'movementUuid': movementUuid,
+      'depotUuid': depotUuid,
+      'lotUuid': lotUuid,
+      'reference': reference,
+      'entityUuid': entityUuid,
+      'periodId': periodId,
+      'userId': userId,
+      'fluxId': fluxId,
+      'isExit': isExit,
+      'date': date.toString(),
+      'description': description,
+      'quantity': quantity,
+      'unitCost': unitCost,
+      'isSync': isSync,
+    };
+  }
+
   // A method that retrieves all the StockMovement from the stock_movement table.
   static Future<List<StockMovement>> stockMovements(dynamic database) async {
     // Get a reference to the database.
@@ -122,10 +168,11 @@ class StockMovement {
     // Query the table for all The StockMovement.
     final List<Map<String, dynamic>> maps = await db.query('stock_movement');
 
-    // Convert the List<Map<String, dynamic> into a List<Depot>.
+    // Convert the List<Map<String, dynamic> into a List<StockMovement>.
     return List.generate(maps.length, (i) {
       return StockMovement(
         uuid: maps[i]['uuid'],
+        movementUuid: maps[i]['movementUuid'],
         reference: maps[i]['reference'],
         depotUuid: maps[i]['depotUuid'],
         entityUuid: maps[i]['entityUuid'],
@@ -136,10 +183,72 @@ class StockMovement {
         description: maps[i]['description'],
         unitCost: maps[i]['unitCost'],
         quantity: maps[i]['quantity'],
-        date: maps[i]['date'],
+        date: parseDate(maps[i]['date']),
         isExit: maps[i]['isExit'],
+        isSync: maps[i]['isSync'],
       );
     });
+  }
+
+  // get stock quantities
+  static Future<List> stockQuantity(dynamic database) async {
+    // Get a reference to the database.
+    final db = await database;
+
+    // Get data from local movements and latest online data received
+    // String query = '''
+    //   SELECT z.depot_uuid, z.inventory_text AS text, z.lot_label AS label,
+    //   SUM(IIF(isExit = 0, 1 * z.quantity, -1 * z.quantity)) quantity,
+    //   z.code, z.unit_type
+    //   FROM (
+    //     SELECT
+    //       i.uuid AS inventory_uuid, l.uuid AS lot_uuid,
+    //       m.depotUuid AS depot_uuid, i.label AS inventory_text, l.label AS lot_label,
+    //       SUM(IIF(isExit = 0, 1 * m.quantity, -1 * m.quantity)) quantity,
+    //       m.isExit, i.code, i.unit AS unit_type
+    //     FROM stock_movement m
+    //     JOIN inventory_lot l ON l.uuid = m.lotUuid
+    //     JOIN inventory i ON i.uuid = l.inventory_uuid
+    //     GROUP BY m.depotUuid, l.inventory_uuid, l.uuid
+    //     UNION ALL
+    //     SELECT
+    //       lot.inventory_uuid AS inventory_uuid, lot.uuid AS lot_uuid,
+    //       lot.depot_uuid AS depot_uuid, lot.text AS inventory_text, lot.label AS lot_label, lot.quantity,
+    //       0 AS isExit, lot.code, lot.unit_type AS unit_type
+    //     FROM lot
+    //     GROUP BY lot.depot_uuid, lot.inventory_uuid, lot.uuid
+    //   ) z
+    //   GROUP BY z.depot_uuid, z.inventory_uuid, z.lot_uuid;
+    // ''';
+    String query = '''
+      SELECT z.depot_uuid, z.inventory_text AS text, z.lot_label AS label,
+      SUM(IIF(isExit = 0, 1 * z.quantity, -1 * z.quantity)) quantity,
+      z.code, z.unit_type
+      FROM (
+        SELECT
+          i.uuid AS inventory_uuid, l.uuid AS lot_uuid,
+          m.depotUuid AS depot_uuid, i.label AS inventory_text, l.label AS lot_label,
+          SUM(IIF(isExit = 0, 1 * m.quantity, -1 * m.quantity)) quantity,
+          m.isExit, i.code, i.unit AS unit_type
+        FROM stock_movement m
+        JOIN inventory_lot l ON l.uuid = m.lotUuid
+        JOIN inventory i ON i.uuid = l.inventory_uuid
+        WHERE m.isSync IS null OR m.isSync = 0
+        GROUP BY m.depotUuid, l.inventory_uuid, l.uuid
+        UNION ALL
+        SELECT
+          lot.inventory_uuid AS inventory_uuid, lot.uuid AS lot_uuid,
+          lot.depot_uuid AS depot_uuid, lot.text AS inventory_text, lot.label AS lot_label, lot.quantity,
+          0 AS isExit, lot.code, lot.unit_type AS unit_type
+        FROM lot
+        GROUP BY lot.depot_uuid, lot.inventory_uuid, lot.uuid
+      ) z 
+      GROUP BY z.depot_uuid, z.inventory_uuid, z.lot_uuid;
+    ''';
+    final List<Map<String, dynamic>> maps = await db.rawQuery(query);
+
+    // Convert the List<Map<String, dynamic> into a List<StockMovement>.
+    return maps;
   }
 
   // Define a function that inserts stock_movements into the database
@@ -181,6 +290,26 @@ class StockMovement {
     );
   }
 
+  static Future<dynamic> updateSyncStatus(
+    dynamic database,
+    String movementUuid,
+    String uuids,
+  ) async {
+    // Get a reference to the database.
+    final db = await database;
+
+    // Update the given StockMovement.
+    Map<String, dynamic> row = {'isSync': 1};
+    return db.update(
+      'stock_movement',
+      row,
+      // Ensure that the StockMovement has a matching id.
+      where: 'movementUuid = ? AND lotUuid IN (?)',
+      // Pass the StockMovement's id as a whereArg to prevent SQL injection.
+      whereArgs: [movementUuid, uuids],
+    );
+  }
+
   static Future<void> deleteMovement(dynamic database, String uuid) async {
     // Get a reference to the database.
     final db = await database;
@@ -190,7 +319,7 @@ class StockMovement {
       'stock_movement',
       // Use a `where` clause to delete a specific depot.
       where: 'uuid = ?',
-      // Pass the Depot's id as a whereArg to prevent SQL injection.
+      // Pass the StockMovement's id as a whereArg to prevent SQL injection.
       whereArgs: [uuid],
     );
   }
@@ -199,7 +328,7 @@ class StockMovement {
     // Get a reference to the database.
     final db = await database;
 
-    // Remove the Depot from the database.
+    // Remove the StockMovement from the database.
     await db.delete(
       'stock_movement',
       // Use a `where` clause to delete a specific depot.

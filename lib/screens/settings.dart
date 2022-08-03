@@ -1,4 +1,5 @@
 import 'package:bhima_collect/models/depot.dart';
+import 'package:bhima_collect/models/inventory_lot.dart';
 import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/services/connect.dart';
 import 'package:bhima_collect/services/db.dart';
@@ -94,6 +95,9 @@ class _SettingsPageState extends State<SettingsPage> {
       lots.forEach((lot) async {
         await Lot.insertLot(database, lot);
       });
+
+      // import into inventory_lot and inventory table
+      await InventoryLot.import(database);
 
       setState(() {
         _isLotsImported = true;

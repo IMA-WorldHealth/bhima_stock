@@ -134,6 +134,27 @@ class InventoryLot {
     return collection;
   }
 
+  // import from lot : inventory_lot and inventory
+  static Future<void> import(dynamic database) async {
+    final db = await database;
+
+    // insert into inventory_lot
+    String queryInsertInventoryLot = '''
+      INSERT INTO inventory_lot (uuid, label, code, inventory_uuid, text, unit_type, group_name, unit_cost, expiration_date, entry_date)
+        SELECT uuid, label, code, inventory_uuid, text, unit_type, group_name, unit_cost, expiration_date, entry_date 
+        FROM lot GROUP BY inventory_uuid, uuid
+    ''';
+    await db.rawQuery(queryInsertInventoryLot);
+
+    // insert into inventory_lot
+    String queryInsertInventory = '''
+      INSERT INTO inventory (uuid, label, code, unit, group_name, is_asset, manufacturer_brand, manufacturer_brand)
+        SELECT inventory_uuid, text, code, unit_type, group_name, is_asset, manufacturer_brand, manufacturer_brand
+        FROM lot GROUP BY inventory_uuid
+    ''';
+    await db.rawQuery(queryInsertInventory);
+  }
+
   // Define a function that inserts lot into the database
   static Future<void> insertLot(dynamic database, InventoryLot lot) async {
     final db = await database;

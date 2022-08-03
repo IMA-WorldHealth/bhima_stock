@@ -1,4 +1,5 @@
 import 'package:bhima_collect/models/lot.dart';
+import 'package:bhima_collect/models/stock_movement.dart';
 import 'package:bhima_collect/screens/depot.dart';
 import 'package:bhima_collect/screens/settings.dart';
 import 'package:bhima_collect/services/db.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bhima_collect/services/connect.dart';
 import 'package:bhima_collect/utilities/util.dart';
+import "package:collection/collection.dart";
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -16,6 +18,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   var connexion = Connect();
+  var database = BhimaDatabase.open();
   DateTime? lastUpdate;
   String _selectedDepotText = '';
   bool _isSyncing = false;
@@ -111,7 +114,28 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future syncStockMovements() async {}
+  Future syncStockMovements() async {
+    try {
+      const url = '/stock/lots/movements';
+      List<StockMovement> movements =
+          await StockMovement.stockMovements(database);
+
+      var lots = movements.where((element) => element.isSync == 0).toList();
+
+      var grouped = lots.groupListsBy((element) => element.movementUuid);
+
+      grouped.forEach((key, value) async {
+        var result =
+            await connexion.post(url, {'lots': value, 'sync_mobile': 1});
+        if (key != null && result != null) {
+          // update the sync status for valid lots of the movements
+          await StockMovement.updateSyncStatus(database, key, result['uuids']);
+        }
+      });
+    } catch (e) {
+      print(e);
+    }
+  }
 
   Future syncBtnClicked() async {
     if (_isSyncing) {
@@ -125,7 +149,7 @@ class _HomePageState extends State<HomePage> {
 
         await serverConnection();
 
-        await fetchLots();
+        await syncStockMovements();
 
         setState(() {
           lastUpdate = DateTime.now();
