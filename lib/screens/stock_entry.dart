@@ -373,7 +373,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
     var date = Provider.of<EntryMovement>(context, listen: false).date;
     var totalItems =
         Provider.of<EntryMovement>(context, listen: false).totalItems;
-    var lots = Provider.of<EntryMovement>(context, listen: false).lots;
+    var lots = Provider.of<EntryMovement>(context).lots;
 
     Future batchInsertMovements(var lots) async {
       var movementUuid = _uuid.v4();

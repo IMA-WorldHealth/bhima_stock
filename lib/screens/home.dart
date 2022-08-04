@@ -1,9 +1,13 @@
+import 'package:bhima_collect/models/inventory_lot.dart';
 import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/models/stock_movement.dart';
+import 'package:bhima_collect/providers/entry_movement.dart';
+import 'package:bhima_collect/providers/exit_movement.dart';
 import 'package:bhima_collect/screens/depot.dart';
 import 'package:bhima_collect/screens/settings.dart';
 import 'package:bhima_collect/services/db.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bhima_collect/services/connect.dart';
 import 'package:bhima_collect/utilities/util.dart';
@@ -105,6 +109,9 @@ class _HomePageState extends State<HomePage> {
         await Lot.insertLot(database, lot);
       });
 
+      // import into inventory_lot and inventory table
+      await InventoryLot.import(database);
+
       setState(() {
         _importedRecords = lots.length;
       });
@@ -120,16 +127,22 @@ class _HomePageState extends State<HomePage> {
       List<StockMovement> movements =
           await StockMovement.stockMovements(database);
 
-      var lots = movements.where((element) => element.isSync == 0).toList();
+      var lots = movements
+          .where((element) => element.isSync == 0 || element.isSync == null)
+          .toList();
 
       var grouped = lots.groupListsBy((element) => element.movementUuid);
 
       grouped.forEach((key, value) async {
         var result =
             await connexion.post(url, {'lots': value, 'sync_mobile': 1});
+
         if (key != null && result != null) {
           // update the sync status for valid lots of the movements
-          await StockMovement.updateSyncStatus(database, key, result['uuids']);
+          var items = await StockMovement.updateSyncStatus(
+              database, key, result['uuids']);
+          print(
+              'Updated rows : $items, -> key: $key, -> uuids: ${result['uuids']}');
         }
       });
     } catch (e) {
@@ -147,9 +160,14 @@ class _HomePageState extends State<HomePage> {
           _isSyncing = true;
         });
 
+        // set the connection to the server
         await serverConnection();
 
+        // send local stock movements (not synced)
         await syncStockMovements();
+
+        // fetch fresh data from the server
+        await fetchLots();
 
         setState(() {
           lastUpdate = DateTime.now();
@@ -237,7 +255,10 @@ class _HomePageState extends State<HomePage> {
                       padding: const EdgeInsets.all(8.0),
                       child: ElevatedButton(
                         onPressed: () {
-                          Navigator.pushNamed(context, '/stock_entry');
+                          Navigator.pushNamed(context, '/stock_entry').then(
+                              (value) => Provider.of<EntryMovement>(context,
+                                      listen: false)
+                                  .reset());
                         },
                         style: btnStyle,
                         child: Row(
@@ -268,7 +289,10 @@ class _HomePageState extends State<HomePage> {
                       padding: const EdgeInsets.all(8.0),
                       child: ElevatedButton(
                         onPressed: () {
-                          Navigator.pushNamed(context, '/stock_exit');
+                          Navigator.pushNamed(context, '/stock_exit').then(
+                              (value) => Provider.of<ExitMovement>(context,
+                                      listen: false)
+                                  .reset());
                         },
                         style: btnStyle,
                         child: Row(

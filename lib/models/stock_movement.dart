@@ -181,7 +181,7 @@ class StockMovement {
         fluxId: maps[i]['fluxId'],
         userId: maps[i]['userId'],
         description: maps[i]['description'],
-        unitCost: maps[i]['unitCost'],
+        unitCost: maps[i]['unitCost'].toDouble(),
         quantity: maps[i]['quantity'],
         date: parseDate(maps[i]['date']),
         isExit: maps[i]['isExit'],
@@ -273,6 +273,8 @@ class StockMovement {
   ) async {
     // Get a reference to the database.
     final db = await database;
+    var lotUuids = uuids.split(',');
+    var lotUuidsMarks = lotUuids.map((e) => '?').join(',');
 
     // Update the given StockMovement.
     Map<String, dynamic> row = {'isSync': 1};
@@ -280,9 +282,9 @@ class StockMovement {
       'stock_movement',
       row,
       // Ensure that the StockMovement has a matching id.
-      where: 'movementUuid = ? AND lotUuid IN (?)',
+      where: 'movementUuid = ? AND lotUuid IN ($lotUuidsMarks)',
       // Pass the StockMovement's id as a whereArg to prevent SQL injection.
-      whereArgs: [movementUuid, uuids],
+      whereArgs: [movementUuid, ...lotUuids],
     );
   }
 

@@ -138,6 +138,10 @@ class InventoryLot {
   static Future<void> import(dynamic database) async {
     final db = await database;
 
+    // clear inventory_lot and inventory tables
+    await db.rawQuery('DELETE FROM inventory_lot;');
+    await db.rawQuery('DELETE FROM inventory;');
+
     // insert into inventory_lot
     String queryInsertInventoryLot = '''
       INSERT INTO inventory_lot (uuid, label, code, inventory_uuid, text, unit_type, group_name, unit_cost, expiration_date, entry_date)

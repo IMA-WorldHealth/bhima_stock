@@ -360,7 +360,7 @@ class _StockExitPageState extends State<StockExitPage> {
     var date = Provider.of<ExitMovement>(context, listen: false).date;
     var totalItems =
         Provider.of<ExitMovement>(context, listen: false).totalItems;
-    var lots = Provider.of<ExitMovement>(context, listen: false).lots;
+    var lots = Provider.of<ExitMovement>(context).lots;
 
     Future batchInsertMovements(var lots) async {
       var movementUuid = _uuid.v4();
