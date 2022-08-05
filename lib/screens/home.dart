@@ -6,6 +6,7 @@ import 'package:bhima_collect/providers/exit_movement.dart';
 import 'package:bhima_collect/screens/depot.dart';
 import 'package:bhima_collect/screens/settings.dart';
 import 'package:bhima_collect/services/db.dart';
+import 'package:date_format/date_format.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -23,10 +24,11 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   var connexion = Connect();
   var database = BhimaDatabase.open();
-  DateTime? lastUpdate;
+  DateTime lastUpdate = DateTime.now();
+  String _formattedLastUpdate = '';
   String _selectedDepotText = '';
+  bool _isRecentSync = false;
   bool _isSyncing = false;
-  bool _isConnectionSucceed = false;
   String _serverUrl = '';
   String _username = '';
   String _password = '';
@@ -46,21 +48,25 @@ class _HomePageState extends State<HomePage> {
       _username = (prefs.getString('username') ?? '');
       _password = (prefs.getString('password') ?? '');
       _selectedDepotText = (prefs.getString('selected_depot_text') ?? '');
+      _formattedLastUpdate = (prefs.getString('last_sync_date') ?? '');
+      _importedRecords = (prefs.getInt('last_sync_items') ?? 0);
+      _isRecentSync = (prefs.getInt('last_sync') ?? 0) == 0 ? false : true;
     });
   }
 
+  //Write settings values after submission
+  Future<void> _saveSyncInfo(String lastSyncDate, int lastSyncItems) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('last_sync_date', lastSyncDate);
+    await prefs.setInt('last_sync_items', lastSyncItems);
+    await prefs.setInt('last_sync', 1);
+  }
+
   Future serverConnection() async {
-    _isConnectionSucceed = false;
     try {
       // init connexion by getting the user token
       await connexion.getToken(_serverUrl, _username, _password);
-      // update the connection status message
-      setState(() {
-        _isConnectionSucceed = true;
-      });
-    } catch (e) {
-      _isConnectionSucceed = false;
-    }
+    } catch (e) {}
   }
 
   Future fetchLots() async {
@@ -168,8 +174,13 @@ class _HomePageState extends State<HomePage> {
 
         setState(() {
           lastUpdate = DateTime.now();
+          _formattedLastUpdate = formatDate(
+              lastUpdate, [dd, '/', mm, '/', yyyy, '  ', HH, ':', nn]);
           _isSyncing = false;
+          _isRecentSync = true;
         });
+
+        await _saveSyncInfo(_formattedLastUpdate, _importedRecords);
       } catch (e) {
         setState(() {
           _isSyncing = false;
@@ -321,17 +332,16 @@ class _HomePageState extends State<HomePage> {
                     ),
                     Padding(
                       padding: const EdgeInsets.all(8.0),
-                      child: Column(
-                        children: <Widget>[
-                          Text(lastUpdate != null
-                              ? 'Dernière synchronisation'
-                              : ''),
-                          Text(lastUpdate != null ? lastUpdate.toString() : ''),
-                          Text(lastUpdate != null
-                              ? 'Nombre des lots importés : $_importedRecords'
-                              : ''),
-                        ],
-                      ),
+                      child: _isRecentSync
+                          ? Column(
+                              children: <Widget>[
+                                const Text('Dernière synchronisation'),
+                                Text(_formattedLastUpdate),
+                                Text(
+                                    'Nombre des lots importés : $_importedRecords'),
+                              ],
+                            )
+                          : Row(),
                     )
                   ],
                 ),

@@ -47,6 +47,7 @@ dependencies:
   flutter_offline: ^2.1.0
   date_format: ^2.0.6
   flutter_typeahead: ^4.0.0
+  darq: ^1.2.1
 
 dev_dependencies:
   flutter_test:
