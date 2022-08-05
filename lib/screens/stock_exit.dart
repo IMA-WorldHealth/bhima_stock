@@ -178,12 +178,15 @@ class _StockExitPageState extends State<StockExitPage> {
 
   Widget inventoryTypeaheadField(int index) {
     final TextEditingController typeAheadController = TextEditingController();
-    Future<List<Lot>> _loadInventories(String pattern) async {
-      List<Lot> allLots = await Lot.inventories(database, _selectedDepotUuid);
-      return allLots
+    Future<List> _loadInventories(String pattern) async {
+      List currentInventories = await StockMovement.stockQuantity(database);
+      return currentInventories
+          .where((element) => element['depot_uuid'] == _selectedDepotUuid)
           .where((element) =>
-              element.text!.toLowerCase().contains(pattern.toLowerCase()) ==
-              true)
+              element['text']!.toLowerCase().contains(pattern.toLowerCase()) ==
+                  true ||
+              element['code']!.toLowerCase().contains(pattern.toLowerCase()) ==
+                  true)
           .toList();
     }
 
@@ -196,12 +199,12 @@ class _StockExitPageState extends State<StockExitPage> {
       suggestionsCallback: (pattern) async {
         return _loadInventories(pattern);
       },
-      itemBuilder: (context, Lot suggestion) {
+      itemBuilder: (context, dynamic suggestion) {
         return Column(
           children: [
             ListTile(
-              title: Text(suggestion.text ?? ''),
-              subtitle: Text(suggestion.code ?? ''),
+              title: Text(suggestion['text'] ?? ''),
+              subtitle: Text(suggestion['code'] ?? ''),
             ),
             const Divider(
               height: 2,
@@ -209,12 +212,12 @@ class _StockExitPageState extends State<StockExitPage> {
           ],
         );
       },
-      onSuggestionSelected: (Lot suggestion) {
-        typeAheadController.text = suggestion.text ?? '';
+      onSuggestionSelected: (dynamic suggestion) {
+        typeAheadController.text = suggestion['text'] ?? '';
         Provider.of<ExitMovement>(context, listen: false)
-            .setLot(index, 'inventory_uuid', suggestion.inventory_uuid);
+            .setLot(index, 'inventory_uuid', suggestion['inventory_uuid']);
         Provider.of<ExitMovement>(context, listen: false)
-            .setLot(index, 'inventory_text', suggestion.text);
+            .setLot(index, 'inventory_text', suggestion['text']);
       },
     );
   }
@@ -223,13 +226,17 @@ class _StockExitPageState extends State<StockExitPage> {
     final TextEditingController lotTypeAheadController =
         TextEditingController();
 
-    Future<List<Lot>> _loadInventoryLots(String pattern) async {
-      var inventoryUuid = Provider.of<ExitMovement>(context)
+    Future<List> _loadInventoryLots(String pattern) async {
+      var inventoryUuid = Provider.of<ExitMovement>(context, listen: false)
           .getLotValue(index, 'inventory_uuid');
-      List<Lot> allLots =
-          await Lot.inventoryLots(database, _selectedDepotUuid, inventoryUuid);
-      return allLots
-          .where((element) => element.text?.contains(pattern) == true)
+
+      List currentLots = await StockMovement.stockQuantity(database);
+      return currentLots
+          .where((element) => element['depot_uuid'] == _selectedDepotUuid)
+          .where((element) => element['inventory_uuid'] == inventoryUuid)
+          .where((element) =>
+              element['label']!.toLowerCase().contains(pattern.toLowerCase()) ==
+              true)
           .toList();
     }
 
@@ -242,14 +249,14 @@ class _StockExitPageState extends State<StockExitPage> {
       suggestionsCallback: (pattern) async {
         return await _loadInventoryLots(pattern);
       },
-      itemBuilder: (context, Lot suggestion) {
+      itemBuilder: (context, dynamic suggestion) {
         return Column(
           children: [
             ListTile(
-              title: Text(suggestion.label ?? ''),
-              subtitle: suggestion.expiration_date == null
+              title: Text(suggestion['label'] ?? ''),
+              subtitle: suggestion['expiration_date'] == null
                   ? null
-                  : Text(suggestion.expiration_date.toString()),
+                  : Text(suggestion['expiration_date'].toString()),
             ),
             const Divider(
               height: 2,
@@ -257,14 +264,16 @@ class _StockExitPageState extends State<StockExitPage> {
           ],
         );
       },
-      onSuggestionSelected: (Lot suggestion) {
-        lotTypeAheadController.text = suggestion.label ?? '';
+      onSuggestionSelected: (dynamic suggestion) {
+        lotTypeAheadController.text = suggestion['label'] ?? '';
         Provider.of<ExitMovement>(context, listen: false)
-            .setLot(index, 'lot_uuid', suggestion.uuid);
+            .setLot(index, 'lot_uuid', suggestion['lot_uuid']);
         Provider.of<ExitMovement>(context, listen: false)
-            .setLot(index, 'lot_label', suggestion.label);
+            .setLot(index, 'lot_label', suggestion['label']);
         Provider.of<ExitMovement>(context, listen: false)
-            .setLot(index, 'unit_cost', suggestion.unit_cost);
+            .setLot(index, 'unit_cost', suggestion['unit_cost']);
+        Provider.of<ExitMovement>(context, listen: false)
+            .setLot(index, 'max_quantity', suggestion['quantity']);
       },
     );
   }
@@ -339,8 +348,13 @@ class _StockExitPageState extends State<StockExitPage> {
                 .setLot(index, 'quantity', value);
           },
           validator: (value) {
+            var maxQuantity = Provider.of<ExitMovement>(context, listen: false)
+                .getLotValue(index, 'max_quantity');
             if (value == null || value.isEmpty) {
               return 'Veuillez saisir la quantité';
+            }
+            if (int.parse(value) > maxQuantity) {
+              return 'Quantité maximum atteint ($maxQuantity)';
             }
             return null;
           },
@@ -369,6 +383,7 @@ class _StockExitPageState extends State<StockExitPage> {
           uuid: _uuid.v4(),
           movementUuid: movementUuid,
           depotUuid: _selectedDepotUuid,
+          inventoryUuid: element['inventory_uuid'],
           lotUuid: element['lot_uuid'],
           reference: documentReference,
           entityUuid: _selectedDepotUuid,

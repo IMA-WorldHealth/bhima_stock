@@ -139,10 +139,7 @@ class _HomePageState extends State<HomePage> {
 
         if (key != null && result != null) {
           // update the sync status for valid lots of the movements
-          var items = await StockMovement.updateSyncStatus(
-              database, key, result['uuids']);
-          print(
-              'Updated rows : $items, -> key: $key, -> uuids: ${result['uuids']}');
+          await StockMovement.updateSyncStatus(database, key, result['uuids']);
         }
       });
     } catch (e) {
