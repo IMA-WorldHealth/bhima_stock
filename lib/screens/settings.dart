@@ -224,7 +224,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: TextFormField(
                   decoration: const InputDecoration(
                     border: UnderlineInputBorder(),
-                    labelText: 'Enter the server URL',
+                    labelText: "Entrez l'adresse du serveur",
                     icon: Icon(Icons.public),
                   ),
                   onChanged: (value) {
@@ -248,7 +248,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: TextFormField(
                   decoration: const InputDecoration(
                     border: UnderlineInputBorder(),
-                    labelText: 'Enter the Username',
+                    labelText: "Entrez votre nom d'utilisateur",
                     icon: Icon(Icons.person),
                   ),
                   onChanged: (value) {
@@ -272,7 +272,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: TextFormField(
                   decoration: const InputDecoration(
                     border: UnderlineInputBorder(),
-                    labelText: 'Enter the password',
+                    labelText: 'Entrez le mot de passe',
                     icon: Icon(Icons.lock_outline),
                   ),
                   onChanged: (value) {
