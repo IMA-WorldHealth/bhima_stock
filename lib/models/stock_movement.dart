@@ -7,6 +7,7 @@ class StockMovement {
   String? uuid;
   String? movementUuid;
   String? depotUuid;
+  String? inventoryUuid;
   String? lotUuid;
   String? reference;
   String? entityUuid;
@@ -24,6 +25,7 @@ class StockMovement {
     required this.uuid,
     required this.movementUuid,
     required this.depotUuid,
+    required this.inventoryUuid,
     required this.lotUuid,
     required this.reference,
     required this.entityUuid,
@@ -43,6 +45,7 @@ class StockMovement {
       'uuid': uuid,
       'movementUuid': movementUuid,
       'depotUuid': depotUuid,
+      'inventoryUuid': inventoryUuid,
       'lotUuid': lotUuid,
       'reference': reference,
       'entityUuid': entityUuid,
@@ -69,6 +72,10 @@ class StockMovement {
 
   String? get getDepotUuid {
     return depotUuid;
+  }
+
+  String? get getInventoryUuid {
+    return inventoryUuid;
   }
 
   String? get getLotUuid {
@@ -127,6 +134,7 @@ class StockMovement {
     reference = json['reference'];
     depotUuid = json['depotUuid'];
     entityUuid = json['entityUuid'];
+    inventoryUuid = json['inventoryUuid'];
     lotUuid = json['lotUuid'];
     periodId = json['periodId'];
     fluxId = json['fluxId'];
@@ -145,6 +153,7 @@ class StockMovement {
       'uuid': uuid,
       'movementUuid': movementUuid,
       'depotUuid': depotUuid,
+      'inventoryUuid': inventoryUuid,
       'lotUuid': lotUuid,
       'reference': reference,
       'entityUuid': entityUuid,
@@ -176,6 +185,7 @@ class StockMovement {
         reference: maps[i]['reference'],
         depotUuid: maps[i]['depotUuid'],
         entityUuid: maps[i]['entityUuid'],
+        inventoryUuid: maps[i]['inventoryUuid'],
         lotUuid: maps[i]['lotUuid'],
         periodId: maps[i]['periodId'],
         fluxId: maps[i]['fluxId'],
@@ -199,13 +209,14 @@ class StockMovement {
     String query = '''
       SELECT z.depot_uuid, z.inventory_text AS text, z.lot_label AS label,
       SUM(z.quantity) quantity,
-      z.code, z.unit_type, z.isExit
+      z.code, z.unit_type, z.isExit, z.inventory_uuid, z.lot_uuid,
+      z.expiration_date, z.unit_cost
       FROM (
         SELECT
           i.uuid AS inventory_uuid, l.uuid AS lot_uuid,
           m.depotUuid AS depot_uuid, i.label AS inventory_text, l.label AS lot_label,
           SUM(IIF(m.isExit = 0, 1 * m.quantity, -1 * m.quantity)) quantity,
-          m.isExit, i.code, i.unit AS unit_type
+          m.isExit, i.code, i.unit AS unit_type, l.expiration_date, l.unit_cost
         FROM stock_movement m
         JOIN inventory_lot l ON l.uuid = m.lotUuid
         JOIN inventory i ON i.uuid = l.inventory_uuid
@@ -215,7 +226,7 @@ class StockMovement {
         SELECT
           lot.inventory_uuid AS inventory_uuid, lot.uuid AS lot_uuid,
           lot.depot_uuid AS depot_uuid, lot.text AS inventory_text, lot.label AS lot_label, lot.quantity,
-          0 AS isExit, lot.code, lot.unit_type AS unit_type
+          0 AS isExit, lot.code, lot.unit_type AS unit_type, lot.expiration_date, lot.unit_cost
         FROM lot
         GROUP BY lot.depot_uuid, lot.inventory_uuid, lot.uuid
       ) z 

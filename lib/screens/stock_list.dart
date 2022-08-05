@@ -33,14 +33,6 @@ class _StockListPageState extends State<StockListPage> {
     });
   }
 
-  // Stream<List<Lot>> _loadLots(String currentDepot) async* {
-  //   List<Lot> allLots = await Lot.lots(database);
-  //   yield allLots
-  //       .where((element) =>
-  //           element.depot_uuid == currentDepot && element.quantity! > 0)
-  //       .toList();
-  // }
-
   Stream<List> _loadLots(String currentDepot) async* {
     List allLots = await StockMovement.stockQuantity(database);
     yield allLots
@@ -205,8 +197,14 @@ class _StockListPageState extends State<StockListPage> {
   }
 
   Widget createLotChip(value) {
-    String expirationDate = value['expiration_date'] != null
-        ? formatDate(value['expiration_date'], [MM, '-', yyyy])
+    dynamic rawExpirationDate;
+    if (value['expiration_date'].runtimeType == String) {
+      rawExpirationDate = parseDate(value['expiration_date']);
+    } else {
+      rawExpirationDate = value['expiration_date'];
+    }
+    String expirationDate = rawExpirationDate != null
+        ? formatDate(rawExpirationDate, [MM, '-', yyyy])
         : '';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),

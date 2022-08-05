@@ -1,8 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.bhima_collect">
+    package="com.imaworldhealth.bhima_stock">
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="bhima_collect"
+        android:label="BHIMA Stock"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
         <activity

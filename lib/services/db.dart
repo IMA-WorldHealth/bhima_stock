@@ -61,6 +61,7 @@ class BhimaDatabase {
             "movementUuid" TEXT,
             "depotUuid" TEXT,
             "entityUuid" TEXT,
+            "inventoryUuid" TEXT,
             "lotUuid" TEXT,
             "periodId" NUMERIC,
             "fluxId" NUMERIC,

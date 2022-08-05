@@ -382,6 +382,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
           uuid: _uuid.v4(),
           movementUuid: movementUuid,
           depotUuid: _selectedDepotUuid,
+          inventoryUuid: element['inventory_uuid'],
           lotUuid: element['lot_uuid'],
           reference: documentReference,
           entityUuid: '',

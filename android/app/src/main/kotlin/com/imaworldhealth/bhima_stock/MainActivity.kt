@@ -1,4 +1,4 @@
-package com.example.bhima_collect
+package com.imaworldhealth.bhima_stock
 
 import io.flutter.embedding.android.FlutterActivity
 
