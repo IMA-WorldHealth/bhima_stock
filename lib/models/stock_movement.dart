@@ -230,7 +230,8 @@ class StockMovement {
         FROM lot
         GROUP BY lot.depot_uuid, lot.inventory_uuid, lot.uuid
       ) z 
-      GROUP BY z.depot_uuid, z.inventory_uuid, z.lot_uuid;
+      GROUP BY z.depot_uuid, z.inventory_uuid, z.lot_uuid
+      ORDER BY z.inventory_text, z.lot_label;
     ''';
     final List<Map<String, dynamic>> maps = await db.rawQuery(query);
 

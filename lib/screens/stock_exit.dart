@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:uuid/uuid.dart';
+import 'package:darq/darq.dart';
 
 class StockExitPage extends StatefulWidget {
   StockExitPage({Key? key}) : super(key: key);
@@ -182,6 +183,7 @@ class _StockExitPageState extends State<StockExitPage> {
       List currentInventories = await StockMovement.stockQuantity(database);
       return currentInventories
           .where((element) => element['depot_uuid'] == _selectedDepotUuid)
+          .distinct((element) => element['inventory_uuid'])
           .where((element) =>
               element['text']!.toLowerCase().contains(pattern.toLowerCase()) ==
                   true ||
@@ -232,8 +234,10 @@ class _StockExitPageState extends State<StockExitPage> {
 
       List currentLots = await StockMovement.stockQuantity(database);
       return currentLots
-          .where((element) => element['depot_uuid'] == _selectedDepotUuid)
-          .where((element) => element['inventory_uuid'] == inventoryUuid)
+          .where((element) =>
+              element['depot_uuid'] == _selectedDepotUuid &&
+              element['inventory_uuid'] == inventoryUuid &&
+              element['quantity'] > 0)
           .where((element) =>
               element['label']!.toLowerCase().contains(pattern.toLowerCase()) ==
               true)
@@ -250,13 +254,15 @@ class _StockExitPageState extends State<StockExitPage> {
         return await _loadInventoryLots(pattern);
       },
       itemBuilder: (context, dynamic suggestion) {
+        String exp = suggestion['expiration_date'] == null ||
+                suggestion['expiration_date'] == 'null'
+            ? ''
+            : '/ Exp. ${suggestion['expiration_date'].toString()}';
         return Column(
           children: [
             ListTile(
               title: Text(suggestion['label'] ?? ''),
-              subtitle: suggestion['expiration_date'] == null
-                  ? null
-                  : Text(suggestion['expiration_date'].toString()),
+              subtitle: Text('Quantité: ${suggestion['quantity']} $exp'),
             ),
             const Divider(
               height: 2,
