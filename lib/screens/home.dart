@@ -306,8 +306,11 @@ class _HomePageState extends State<HomePage> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: const <Widget>[
-                            Icon(Icons.remove),
-                            Text('Sortie de stock'),
+                            Icon(Icons.people_alt_rounded),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 8),
+                              child: Text('Consommation'),
+                            ),
                           ],
                         ),
                       ),

@@ -68,33 +68,6 @@ class _StockEntryPageState extends State<StockEntryPage> {
 
   @override
   Widget build(BuildContext context) {
-    List<Widget> getPages() {
-      List<Widget> pages = [];
-
-      // Introduction page
-      pages.add(Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: stockEntryStartPage(),
-      ));
-
-      // Lots pages
-      Provider.of<EntryMovement>(context).createLots();
-      for (var i = 0; i < Provider.of<EntryMovement>(context).totalItems; i++) {
-        pages.add(Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: lotEntryPage(i),
-        ));
-      }
-
-      // Introduction page
-      pages.add(Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: submitPage(),
-      ));
-
-      return pages;
-    }
-
     var pageViews = Column(
       children: <Widget>[
         Padding(
@@ -173,6 +146,37 @@ class _StockEntryPageState extends State<StockEntryPage> {
       body: pageBody,
       bottomNavigationBar: pageBottom,
     );
+  }
+
+  List<Widget> getPages() {
+    List<Widget> pages = [];
+
+    // Introduction page
+    pages.add(Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: stockEntryStartPage(),
+    ));
+
+    // Lots pages
+    num count = Provider.of<EntryMovement>(context, listen: false).totalItems;
+    // clear previous lots array
+    Provider.of<EntryMovement>(context, listen: false).clear();
+    // create page view according totalItems expected
+    for (var i = 0; i < count; i++) {
+      Provider.of<EntryMovement>(context, listen: false).addLot({});
+      pages.add(Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: lotEntryPage(i),
+      ));
+    }
+
+    // Introduction page
+    pages.add(Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: submitPage(),
+    ));
+
+    return pages;
   }
 
   Widget inventoryTypeaheadField(int index) {
@@ -378,24 +382,26 @@ class _StockEntryPageState extends State<StockEntryPage> {
     Future batchInsertMovements(var lots) async {
       var movementUuid = _uuid.v4();
       return lots.forEach((element) async {
-        var movement = StockMovement(
-          uuid: _uuid.v4(),
-          movementUuid: movementUuid,
-          depotUuid: _selectedDepotUuid,
-          inventoryUuid: element['inventory_uuid'],
-          lotUuid: element['lot_uuid'],
-          reference: documentReference,
-          entityUuid: '',
-          periodId: int.parse(formatDate(date, [yyyy, mm])),
-          userId: _userId,
-          fluxId: _STOCK_FROM_OTHER_DEPOT,
-          isExit: 0,
-          date: date,
-          description: 'RECEPTION',
-          quantity: int.parse(element['quantity']),
-          unitCost: element['unit_cost'].toDouble(),
-        );
-        await StockMovement.insertMovement(database, movement);
+        if (element != null && element['lot_uuid'] != null) {
+          var movement = StockMovement(
+            uuid: _uuid.v4(),
+            movementUuid: movementUuid,
+            depotUuid: _selectedDepotUuid,
+            inventoryUuid: element['inventory_uuid'],
+            lotUuid: element['lot_uuid'],
+            reference: documentReference,
+            entityUuid: '',
+            periodId: int.parse(formatDate(date, [yyyy, mm])),
+            userId: _userId,
+            fluxId: _STOCK_FROM_OTHER_DEPOT,
+            isExit: 0,
+            date: date,
+            description: 'RECEPTION',
+            quantity: int.parse(element['quantity']),
+            unitCost: element['unit_cost'].toDouble(),
+          );
+          await StockMovement.insertMovement(database, movement);
+        }
       });
     }
 
