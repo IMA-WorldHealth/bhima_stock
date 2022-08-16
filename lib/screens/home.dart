@@ -33,6 +33,7 @@ class _HomePageState extends State<HomePage> {
   String _username = '';
   String _password = '';
   int _importedRecords = 0;
+  num _progress = 0;
 
   @override
   void initState() {
@@ -139,6 +140,10 @@ class _HomePageState extends State<HomePage> {
 
       var grouped = lots.groupListsBy((element) => element.movementUuid);
 
+      var max = grouped.length;
+      var i = 0;
+      var countSynced = 0;
+      _progress = max != 0 ? 0 : 100;
       grouped.forEach((key, value) async {
         var result =
             await connexion.post(url, {'lots': value, 'sync_mobile': 1});
@@ -146,7 +151,14 @@ class _HomePageState extends State<HomePage> {
         if (key != null && result != null) {
           // update the sync status for valid lots of the movements
           await StockMovement.updateSyncStatus(database, key, result['uuids']);
+          countSynced++;
         }
+
+        setState(() {
+          i++;
+          _progress =
+              (((i / max) * 100 + (countSynced / max) * 100) / 2).round();
+        });
       });
     } catch (e) {
       print(e);
@@ -332,6 +344,20 @@ class _HomePageState extends State<HomePage> {
                           ],
                         ),
                       ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: _isSyncing
+                          ? Column(
+                              children: <Widget>[
+                                LinearProgressIndicator(
+                                  value: _progress.toDouble(),
+                                  semanticsLabel: '$_progress %',
+                                ),
+                                Text('$_progress %')
+                              ],
+                            )
+                          : Row(),
                     ),
                     Padding(
                       padding: const EdgeInsets.all(8.0),
