@@ -70,33 +70,6 @@ class _StockExitPageState extends State<StockExitPage> {
 
   @override
   Widget build(BuildContext context) {
-    List<Widget> getPages() {
-      List<Widget> pages = [];
-
-      // Introduction page
-      pages.add(Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: stockExitStartPage(),
-      ));
-
-      // Lots pages
-      Provider.of<ExitMovement>(context).createLots();
-      for (var i = 0; i < Provider.of<ExitMovement>(context).totalItems; i++) {
-        pages.add(Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: lotExitPage(i),
-        ));
-      }
-
-      // Introduction page
-      pages.add(Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: submitPage(),
-      ));
-
-      return pages;
-    }
-
     var pageViews = Column(
       children: <Widget>[
         Padding(
@@ -144,8 +117,6 @@ class _StockExitPageState extends State<StockExitPage> {
               if (_formKey.currentState!.validate()) {
                 if (_controller.page == 0) {
                   Provider.of<ExitMovement>(context, listen: false)
-                      .setDocumentReference = _txtReference.text;
-                  Provider.of<ExitMovement>(context, listen: false)
                       .setTotalItems = int.parse(_txtQuantity.text);
                 }
                 _controller.nextPage(duration: _kDuration, curve: _kCurve);
@@ -175,6 +146,37 @@ class _StockExitPageState extends State<StockExitPage> {
       body: pageBody,
       bottomNavigationBar: pageBottom,
     );
+  }
+
+  List<Widget> getPages() {
+    List<Widget> pages = [];
+
+    // Introduction page
+    pages.add(Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: stockExitStartPage(),
+    ));
+
+    // Lots pages
+    num count = Provider.of<ExitMovement>(context, listen: false).totalItems;
+    // clear previous lots array
+    Provider.of<ExitMovement>(context, listen: false).clear();
+    // create page view according totalItems expected
+    for (var i = 0; i < count; i++) {
+      Provider.of<ExitMovement>(context, listen: false).addLot({});
+      pages.add(Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: lotExitPage(i),
+      ));
+    }
+
+    // Introduction page
+    pages.add(Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: submitPage(),
+    ));
+
+    return pages;
   }
 
   Widget inventoryTypeaheadField(int index) {
@@ -375,8 +377,6 @@ class _StockExitPageState extends State<StockExitPage> {
   }
 
   Widget submitPage() {
-    var documentReference =
-        Provider.of<ExitMovement>(context, listen: false).documentReference;
     var date = Provider.of<ExitMovement>(context, listen: false).date;
     var totalItems =
         Provider.of<ExitMovement>(context, listen: false).totalItems;
@@ -385,24 +385,26 @@ class _StockExitPageState extends State<StockExitPage> {
     Future batchInsertMovements(var lots) async {
       var movementUuid = _uuid.v4();
       return lots.forEach((element) async {
-        var movement = StockMovement(
-          uuid: _uuid.v4(),
-          movementUuid: movementUuid,
-          depotUuid: _selectedDepotUuid,
-          inventoryUuid: element['inventory_uuid'],
-          lotUuid: element['lot_uuid'],
-          reference: documentReference,
-          entityUuid: _selectedDepotUuid,
-          periodId: int.parse(formatDate(date, [yyyy, mm])),
-          userId: _userId,
-          fluxId: _STOCK_FROM_TO_PATIENT,
-          isExit: 1,
-          date: date,
-          description: 'Consommation',
-          quantity: int.parse(element['quantity']),
-          unitCost: element['unit_cost'].toDouble(),
-        );
-        await StockMovement.insertMovement(database, movement);
+        if (element != null && element['lot_uuid'] != null) {
+          var movement = StockMovement(
+            uuid: _uuid.v4(),
+            movementUuid: movementUuid,
+            depotUuid: _selectedDepotUuid,
+            inventoryUuid: element['inventory_uuid'],
+            lotUuid: element['lot_uuid'],
+            reference: '',
+            entityUuid: _selectedDepotUuid,
+            periodId: int.parse(formatDate(date, [yyyy, mm])),
+            userId: _userId,
+            fluxId: _STOCK_FROM_TO_PATIENT,
+            isExit: 1,
+            date: date,
+            description: 'Consommation',
+            quantity: int.parse(element['quantity'] ?? 0),
+            unitCost: element['unit_cost'].toDouble(),
+          );
+          await StockMovement.insertMovement(database, movement);
+        }
       });
     }
 
@@ -438,10 +440,6 @@ class _StockExitPageState extends State<StockExitPage> {
             child: Text('Date: ${formatDate(date, _customDateFormat)}'),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 0),
-            child: Text('Reference: $documentReference'),
-          ),
-          Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Text('Nombre des items: $totalItems'),
           ),
@@ -452,9 +450,9 @@ class _StockExitPageState extends State<StockExitPage> {
               if (lots.isNotEmpty && lots[index] != null) {
                 var value = lots[index];
                 return ListTile(
-                  title: Text(value['inventory_text']),
-                  subtitle: Text(value['lot_label']),
-                  trailing: Chip(label: Text(value['quantity'])),
+                  title: Text(value['inventory_text'] ?? ''),
+                  subtitle: Text(value['lot_label'] ?? ''),
+                  trailing: Chip(label: Text(value['quantity'] ?? '')),
                 );
               } else {
                 return Row();

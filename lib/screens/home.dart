@@ -33,6 +33,9 @@ class _HomePageState extends State<HomePage> {
   String _username = '';
   String _password = '';
   int _importedRecords = 0;
+  num _progress = 0;
+  int _countSynced = 0;
+  int _maxToSync = 0;
 
   @override
   void initState() {
@@ -55,10 +58,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   //Write settings values after submission
-  Future<void> _saveSyncInfo(String lastSyncDate, int lastSyncItems) async {
+  Future<void> _saveSyncInfo(
+      String lastSyncDate, int itemsSynced, int totalItemsToSync) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('last_sync_date', lastSyncDate);
-    await prefs.setInt('last_sync_items', lastSyncItems);
+    await prefs.setInt('items_synced', itemsSynced);
+    await prefs.setInt('total_items_to_sync', totalItemsToSync);
     await prefs.setInt('last_sync', 1);
   }
 
@@ -139,6 +144,9 @@ class _HomePageState extends State<HomePage> {
 
       var grouped = lots.groupListsBy((element) => element.movementUuid);
 
+      _maxToSync = grouped.length;
+      _countSynced = 0;
+      _progress = _maxToSync != 0 ? 0 : 100;
       grouped.forEach((key, value) async {
         var result =
             await connexion.post(url, {'lots': value, 'sync_mobile': 1});
@@ -146,6 +154,10 @@ class _HomePageState extends State<HomePage> {
         if (key != null && result != null) {
           // update the sync status for valid lots of the movements
           await StockMovement.updateSyncStatus(database, key, result['uuids']);
+          setState(() {
+            _countSynced++;
+            _progress = ((_countSynced / _maxToSync) * 100).round();
+          });
         }
       });
     } catch (e) {
@@ -180,7 +192,7 @@ class _HomePageState extends State<HomePage> {
           _isRecentSync = true;
         });
 
-        await _saveSyncInfo(_formattedLastUpdate, _importedRecords);
+        await _saveSyncInfo(_formattedLastUpdate, _countSynced, _maxToSync);
       } catch (e) {
         setState(() {
           _isSyncing = false;
@@ -306,8 +318,11 @@ class _HomePageState extends State<HomePage> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: const <Widget>[
-                            Icon(Icons.remove),
-                            Text('Sortie de stock'),
+                            Icon(Icons.people_alt_rounded),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 8),
+                              child: Text('Consommation'),
+                            ),
                           ],
                         ),
                       ),
@@ -332,13 +347,27 @@ class _HomePageState extends State<HomePage> {
                     ),
                     Padding(
                       padding: const EdgeInsets.all(8.0),
+                      child: _progress > 0
+                          ? Column(
+                              children: <Widget>[
+                                LinearProgressIndicator(
+                                  value: _progress.toDouble(),
+                                  semanticsLabel: '$_progress %',
+                                ),
+                                Text('$_progress %')
+                              ],
+                            )
+                          : Row(),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
                       child: _isRecentSync
                           ? Column(
                               children: <Widget>[
                                 const Text('Dernière synchronisation'),
                                 Text(_formattedLastUpdate),
                                 Text(
-                                    'Nombre des lots importés : $_importedRecords'),
+                                    'Données synchronisées : $_countSynced / $_maxToSync'),
                               ],
                             )
                           : Row(),

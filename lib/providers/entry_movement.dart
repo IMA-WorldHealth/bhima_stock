@@ -4,7 +4,7 @@ class EntryMovement extends ChangeNotifier {
   String documentReference = '';
   DateTime date = DateTime.now();
   int totalItems = 0;
-  var lots = [];
+  final List lots = [];
 
   set setDocumentReference(String value) {
     documentReference = value;
@@ -36,15 +36,19 @@ class EntryMovement extends ChangeNotifier {
         : '';
   }
 
-  void createLots() {
-    lots = List.filled(totalItems, null, growable: false);
+  void addLot(value) {
+    lots.add(value);
+  }
+
+  void clear() {
+    lots.clear();
   }
 
   void reset() {
     documentReference = '';
     date = DateTime.now();
     totalItems = 0;
-    lots = [];
+    lots.clear();
     notifyListeners();
   }
 
