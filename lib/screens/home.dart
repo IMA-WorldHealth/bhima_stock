@@ -427,9 +427,8 @@ class _HomePageState extends State<HomePage> {
                       padding: const EdgeInsets.all(8.0),
                       child: ElevatedButton(
                         onPressed: () {
-                          Navigator.pushNamed(context, '/stock_integration')
-                              .then((value) => Provider.of<EntryMovement>(
-                                      context,
+                          Navigator.pushNamed(context, '/stock_loss').then(
+                              (value) => Provider.of<EntryMovement>(context,
                                       listen: false)
                                   .reset());
                         },

@@ -8,6 +8,7 @@ import 'package:bhima_collect/screens/stock_entry.dart';
 import 'package:bhima_collect/screens/stock_entry_integration.dart';
 import 'package:bhima_collect/screens/stock_exit.dart';
 import 'package:bhima_collect/screens/stock_list.dart';
+import 'package:bhima_collect/screens/stock_loss.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -54,6 +55,7 @@ class _MyAppState extends State<MyApp> {
         '/stock_entry': (context) => StockEntryPage(),
         '/stock_exit': (context) => StockExitPage(),
         '/stock_integration': (context) => const StockEntryIntegration(),
+        '/stock_loss': (context) => const StockLossPage(),
       },
     );
   }
