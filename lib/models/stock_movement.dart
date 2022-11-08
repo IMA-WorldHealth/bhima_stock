@@ -325,4 +325,30 @@ class StockMovement {
       where: 'uuid IS NOT NULL',
     );
   }
+
+  // get lots from local integrations
+  static Future<List> getLocalLots(dynamic database) async {
+    // Get a reference to the database.
+    final db = await database;
+
+    // Get data from local movements and latest online data received
+    String query = '''
+      SELECT
+        l.uuid,
+        l.label,
+        l.quantity,
+        l.unit_cost,
+        l.expiration_date,
+        l.inventory_uuid,
+        m.isSync,
+        m.movementUuid
+      FROM stock_movement m
+      JOIN lot l ON l.uuid = m.lotUuid
+      WHERE m.fluxId = 13 AND m.isExit = 0 AND (m.isSync IS NULL OR m.isSync = 0);
+    ''';
+    final List<Map<String, dynamic>> maps = await db.rawQuery(query);
+
+    // Convert the List<Map<String, dynamic> into a List<StockMovement>.
+    return maps;
+  }
 }

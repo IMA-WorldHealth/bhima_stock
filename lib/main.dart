@@ -5,6 +5,7 @@ import 'package:bhima_collect/screens/depot.dart';
 import 'package:bhima_collect/screens/home.dart';
 import 'package:bhima_collect/screens/settings.dart';
 import 'package:bhima_collect/screens/stock_entry.dart';
+import 'package:bhima_collect/screens/stock_entry_integration.dart';
 import 'package:bhima_collect/screens/stock_exit.dart';
 import 'package:bhima_collect/screens/stock_list.dart';
 import 'package:flutter/material.dart';
@@ -52,6 +53,7 @@ class _MyAppState extends State<MyApp> {
         '/stock': (context) => StockListPage(),
         '/stock_entry': (context) => StockEntryPage(),
         '/stock_exit': (context) => StockExitPage(),
+        '/stock_integration': (context) => const StockEntryIntegration(),
       },
     );
   }

@@ -1,34 +1,34 @@
-import 'package:bhima_collect/models/lot.dart';
-import 'package:bhima_collect/models/stock_movement.dart';
-import 'package:bhima_collect/providers/entry_movement.dart';
-import 'package:bhima_collect/services/db.dart';
-import 'package:bhima_collect/utilities/util.dart';
-import 'package:date_format/date_format.dart';
+import 'package:bhima_collect/models/inventory_lot.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:uuid/uuid.dart';
+import 'package:date_format/date_format.dart';
+import 'package:flutter_typeahead/flutter_typeahead.dart';
 
-class StockEntryPage extends StatefulWidget {
-  StockEntryPage({Key? key}) : super(key: key);
+import 'package:bhima_collect/providers/entry_movement.dart';
+import 'package:bhima_collect/models/stock_movement.dart';
+import 'package:bhima_collect/models/lot.dart';
+import 'package:bhima_collect/services/db.dart';
+
+class StockEntryIntegration extends StatefulWidget {
+  const StockEntryIntegration({Key? key}) : super(key: key);
 
   @override
-  State<StockEntryPage> createState() => _StockEntryPageState();
+  State<StockEntryIntegration> createState() => _StockEntryIntegrationState();
 }
 
-class _StockEntryPageState extends State<StockEntryPage> {
+class _StockEntryIntegrationState extends State<StockEntryIntegration> {
   var database = BhimaDatabase.open();
   final _uuid = const Uuid();
   final _formKey = GlobalKey<FormState>();
-  final _STOCK_FROM_OTHER_DEPOT = 2;
+  final _stockFromIntegration = 13;
   final PageController _controller = PageController(
     initialPage: 0,
   );
 
   final TextEditingController _txtDate = TextEditingController();
-  final TextEditingController _txtReference = TextEditingController();
   final TextEditingController _txtQuantity = TextEditingController();
 
   String _selectedDepotUuid = '';
@@ -51,7 +51,6 @@ class _StockEntryPageState extends State<StockEntryPage> {
   void dispose() {
     _controller.dispose();
     _txtDate.dispose();
-    _txtReference.dispose();
     _txtQuantity.dispose();
     super.dispose();
   }
@@ -115,8 +114,6 @@ class _StockEntryPageState extends State<StockEntryPage> {
               if (_formKey.currentState!.validate()) {
                 if (_controller.page == 0) {
                   Provider.of<EntryMovement>(context, listen: false)
-                      .setDocumentReference = _txtReference.text;
-                  Provider.of<EntryMovement>(context, listen: false)
                       .setTotalItems = int.parse(_txtQuantity.text);
                 }
                 _controller.nextPage(duration: _kDuration, curve: _kCurve);
@@ -131,7 +128,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Entrée de stock'),
+        title: const Text('Integration de stock'),
         leading: Builder(
           builder: (context) {
             return IconButton(
@@ -170,7 +167,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
       ));
     }
 
-    // Introduction page
+    // Summary page
     pages.add(Padding(
       padding: const EdgeInsets.all(16.0),
       child: submitPage(),
@@ -218,56 +215,16 @@ class _StockEntryPageState extends State<StockEntryPage> {
             .setLot(index, 'inventory_uuid', suggestion.inventory_uuid);
         Provider.of<EntryMovement>(context, listen: false)
             .setLot(index, 'inventory_text', suggestion.text);
-      },
-    );
-  }
-
-  Widget lotTypeaheadField(int index) {
-    final TextEditingController lotTypeAheadController =
-        TextEditingController();
-
-    Future<List<Lot>> _loadInventoryLots(String pattern) async {
-      var inventoryUuid = Provider.of<EntryMovement>(context)
-          .getLotValue(index, 'inventory_uuid');
-      List<Lot> allLots =
-          await Lot.inventoryLots(database, _selectedDepotUuid, inventoryUuid);
-      return allLots
-          .where((element) => element.text?.contains(pattern) == true)
-          .toList();
-    }
-
-    return TypeAheadField(
-      textFieldConfiguration: TextFieldConfiguration(
-        controller: lotTypeAheadController,
-        autofocus: true,
-        decoration: const InputDecoration(labelText: 'Lot'),
-      ),
-      suggestionsCallback: (pattern) async {
-        return await _loadInventoryLots(pattern);
-      },
-      itemBuilder: (context, Lot suggestion) {
-        return Column(
-          children: [
-            ListTile(
-              title: Text(suggestion.label ?? ''),
-              subtitle: suggestion.expiration_date == null
-                  ? null
-                  : Text(suggestion.expiration_date.toString()),
-            ),
-            const Divider(
-              height: 2,
-            )
-          ],
-        );
-      },
-      onSuggestionSelected: (Lot suggestion) {
-        lotTypeAheadController.text = suggestion.label ?? '';
         Provider.of<EntryMovement>(context, listen: false)
-            .setLot(index, 'lot_uuid', suggestion.uuid);
+            .setLot(index, 'inventory_code', suggestion.code);
         Provider.of<EntryMovement>(context, listen: false)
-            .setLot(index, 'lot_label', suggestion.label);
+            .setLot(index, 'unit_type', suggestion.unit_type);
         Provider.of<EntryMovement>(context, listen: false)
-            .setLot(index, 'unit_cost', suggestion.unit_cost);
+            .setLot(index, 'group_name', suggestion.group_name);
+        Provider.of<EntryMovement>(context, listen: false)
+            .setLot(index, 'manufacturer_brand', suggestion.manufacturer_brand);
+        Provider.of<EntryMovement>(context, listen: false)
+            .setLot(index, 'manufacturer_model', suggestion.manufacturer_model);
       },
     );
   }
@@ -283,39 +240,26 @@ class _StockEntryPageState extends State<StockEntryPage> {
         lastDate: DateTime(2030),
       );
       if (picked != null && picked != _selectedDate) {
-        setState(() {
-          _selectedDate = picked;
-          formattedSelectedDate = formatDate(_selectedDate, _customDateFormat);
-        });
+        _selectedDate = picked;
+        formattedSelectedDate = formatDate(_selectedDate, _customDateFormat);
+        _txtDate.text = formattedSelectedDate;
+        Provider.of<EntryMovement>(context, listen: false).setDate =
+            _selectedDate;
       }
     }
 
     return Column(
       children: <Widget>[
-        ElevatedButton.icon(
-            onPressed: () => _selectDate(context).then(
-                  (_) {
-                    Provider.of<EntryMovement>(context, listen: false).setDate =
-                        _selectedDate;
-                  },
+        TextField(
+            controller: _txtDate, //editing controller of this TextField
+            decoration: const InputDecoration(
+                labelText: "Date de l'integration" //label text of field
                 ),
-            icon: const Icon(Icons.date_range_sharp),
-            label: Text(formattedSelectedDate)),
-        TextFormField(
-          controller: _txtReference,
-          decoration: const InputDecoration(
-            prefix: Text('SM.8. '),
-            border: UnderlineInputBorder(),
-            labelText: 'Numéro bon de sortie',
-          ),
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Veuillez saisir la reference du bon de sortie';
-            }
-            return null;
-          },
-          keyboardType: TextInputType.number,
-        ),
+            readOnly: true, // when true user cannot edit text
+            onTap: () async {
+              //when click we have to show the datepicker
+              await _selectDate(context);
+            }),
         TextFormField(
           controller: _txtQuantity,
           decoration: const InputDecoration(
@@ -324,7 +268,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
           ),
           validator: (value) {
             if (value == null || value.isEmpty) {
-              return "Veuillez saisir le nombre des items";
+              return "Veuillez saisir le nombre des lots";
             }
             return null;
           },
@@ -339,13 +283,87 @@ class _StockEntryPageState extends State<StockEntryPage> {
 
   Widget lotEntryPage(int index) {
     var txtQuantity = TextEditingController();
+    var txtLabel = TextEditingController();
+    var txtExpirationDate = TextEditingController();
+    var txtUnitCost = TextEditingController();
     var totalItems =
         Provider.of<EntryMovement>(context, listen: false).totalItems;
+
+    DateTime expirationDate = DateTime.now();
+
+    Future selectExpirationDate(BuildContext context) async {
+      final DateTime? picked = await showDatePicker(
+        context: context,
+        initialDate: DateTime.now(),
+        firstDate: DateTime(2000),
+        lastDate: DateTime(2030),
+      );
+      if (picked != null && picked.compareTo(DateTime.now()) > 0) {
+        // be sure the picked date is in the future
+        expirationDate = picked;
+        var hrFormattedExpirationDate =
+            formatDate(expirationDate, _customDateFormat);
+        txtExpirationDate.text = hrFormattedExpirationDate;
+        Provider.of<EntryMovement>(context, listen: false)
+            .setLot(index, 'expiration_date', expirationDate);
+      }
+    }
+
     return Column(
       children: <Widget>[
         Text('Item ${index + 1} sur $totalItems'),
         inventoryTypeaheadField(index),
-        lotTypeaheadField(index),
+        TextFormField(
+          decoration: const InputDecoration(
+            border: UnderlineInputBorder(),
+            labelText: 'Libellé du lot',
+          ),
+          onChanged: (value) {
+            Provider.of<EntryMovement>(context, listen: false)
+                .setLot(index, 'lot_label', value);
+            Provider.of<EntryMovement>(context, listen: false)
+                .setLot(index, 'lot_uuid', _uuid.v4());
+          },
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Veuillez saisir le numero du lot';
+            }
+            return null;
+          },
+          controller: txtLabel,
+        ),
+        TextField(
+            controller:
+                txtExpirationDate, //editing controller of this TextField
+            decoration: const InputDecoration(
+                labelText: "Date d'expiration" //label text of field
+                ),
+            readOnly: true, // when true user cannot edit text
+            onTap: () async {
+              //when click we have to show the datepicker
+              await selectExpirationDate(context);
+            }),
+        TextFormField(
+          decoration: const InputDecoration(
+            border: UnderlineInputBorder(),
+            labelText: 'Coût unitaire',
+          ),
+          onChanged: (value) {
+            Provider.of<EntryMovement>(context, listen: false)
+                .setLot(index, 'unit_cost', value);
+          },
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Veuillez saisir le cout unitaire';
+            }
+            return null;
+          },
+          controller: txtUnitCost,
+          keyboardType: TextInputType.number,
+          inputFormatters: <TextInputFormatter>[
+            FilteringTextInputFormatter.digitsOnly
+          ],
+        ),
         TextFormField(
           decoration: const InputDecoration(
             border: UnderlineInputBorder(),
@@ -383,6 +401,32 @@ class _StockEntryPageState extends State<StockEntryPage> {
       var movementUuid = _uuid.v4();
       return lots.forEach((element) async {
         if (element != null && element['lot_uuid'] != null) {
+          var lot = Lot(
+            uuid: element['lot_uuid'],
+            label: element['lot_label'],
+            lot_description: element['lot_label'],
+            code: element['inventory_code'],
+            inventory_uuid: element['inventory_uuid'],
+            text: element['inventory_text'],
+            unit_type: element['unit_type'],
+            group_name: element['group_name'],
+            depot_text: _selectedDepotText,
+            depot_uuid: _selectedDepotUuid,
+            is_asset: 0,
+            barcode: '',
+            serial_number: '',
+            reference_number: '',
+            manufacturer_brand: element['manufacturer_brand'],
+            manufacturer_model: element['manufacturer_model'],
+            unit_cost: double.parse(element['unit_cost']),
+            quantity: 0, // previous quantity set to zero
+            avg_consumption: 0,
+            exhausted: false,
+            expired: false,
+            near_expiration: false,
+            expiration_date: element['expiration_date'],
+            entry_date: date,
+          );
           var movement = StockMovement(
             uuid: _uuid.v4(),
             movementUuid: movementUuid,
@@ -393,22 +437,28 @@ class _StockEntryPageState extends State<StockEntryPage> {
             entityUuid: '',
             periodId: int.parse(formatDate(date, [yyyy, mm])),
             userId: _userId,
-            fluxId: _STOCK_FROM_OTHER_DEPOT,
+            fluxId: _stockFromIntegration,
             isExit: 0,
             date: date,
-            description: 'RECEPTION',
+            description: 'INTEGRATION',
             quantity: int.parse(element['quantity']),
             unitCost: double.parse(element['unit_cost']),
           );
+          // insert lot
+          await Lot.insertLot(database, lot);
+          // insert movement
           await StockMovement.insertMovement(database, movement);
         }
       });
     }
 
     Future<dynamic> save() {
-      return batchInsertMovements(lots).then((value) {
+      return batchInsertMovements(lots).then((value) async {
+        // import into inventory_lot and inventory table
+        return InventoryLot.import(database);
+      }).then((value) {
         var snackBar = const SnackBar(
-          content: Text('Entrée de stock réussie ✅'),
+          content: Text('Integration de stock réussie ✅'),
         );
 
         // Find the ScaffoldMessenger in the widget tree
@@ -437,10 +487,6 @@ class _StockEntryPageState extends State<StockEntryPage> {
             child: Text('Date: ${formatDate(date, _customDateFormat)}'),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 0),
-            child: Text('Reference: $documentReference'),
-          ),
-          Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Text('Nombre des items: $totalItems'),
           ),
@@ -452,7 +498,15 @@ class _StockEntryPageState extends State<StockEntryPage> {
                 var value = lots[index];
                 return ListTile(
                   title: Text(value['inventory_text']),
-                  subtitle: Text(value['lot_label']),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(value['lot_label']),
+                      Text(
+                          'Expiration : ${formatDate(value['expiration_date'], _customDateFormat)}'),
+                      Text('Coût unitaire : ${value['unit_cost']}'),
+                    ],
+                  ),
                   trailing: Chip(label: Text(value['quantity'])),
                 );
               } else {
