@@ -398,7 +398,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
             date: date,
             description: 'RECEPTION',
             quantity: int.parse(element['quantity']),
-            unitCost: double.parse(element['unit_cost']),
+            unitCost: element['unit_cost'].toDouble(),
           );
           await StockMovement.insertMovement(database, movement);
         }

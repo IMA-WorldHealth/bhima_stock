@@ -321,8 +321,8 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
           onChanged: (value) {
             Provider.of<EntryMovement>(context, listen: false)
                 .setLot(index, 'lot_label', value);
-            Provider.of<EntryMovement>(context, listen: false)
-                .setLot(index, 'lot_uuid', _uuid.v4());
+            Provider.of<EntryMovement>(context, listen: false).setLot(index,
+                'lot_uuid', _uuid.v4().replaceAll('-', '').toUpperCase());
           },
           validator: (value) {
             if (value == null || value.isEmpty) {

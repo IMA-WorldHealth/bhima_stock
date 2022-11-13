@@ -181,6 +181,9 @@ class _HomePageState extends State<HomePage> {
         }
       });
 
+      // fetch fresh data from the server after entries
+      await fetchLots();
+
       exitGrouped.forEach((key, value) async {
         var result =
             await connexion.post(url, {'lots': value, 'sync_mobile': 1});
@@ -194,6 +197,9 @@ class _HomePageState extends State<HomePage> {
           });
         }
       });
+
+      // fetch fresh data from the server after exits
+      await fetchLots();
     } catch (e) {
       print(e);
     }
@@ -228,14 +234,9 @@ class _HomePageState extends State<HomePage> {
 
         // send local lots
         await syncLots();
-        print('finished with sync lots');
 
         // send local stock movements (not synced)
         await syncStockMovements();
-        print('finished with sync movement');
-
-        // fetch fresh data from the server
-        await fetchLots();
 
         setState(() {
           lastUpdate = DateTime.now();

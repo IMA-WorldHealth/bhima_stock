@@ -256,10 +256,13 @@ class _StockExitPageState extends State<StockExitPage> {
         return await _loadInventoryLots(pattern);
       },
       itemBuilder: (context, dynamic suggestion) {
-        String exp = suggestion['expiration_date'] == null ||
-                suggestion['expiration_date'] == 'null'
-            ? ''
-            : '/ Exp. ${suggestion['expiration_date'].toString()}';
+        bool isDateNull = suggestion['expiration_date'] == null ||
+            suggestion['expiration_date'] == 'null';
+        var formattedExpirationDate = !isDateNull
+            ? formatDate(DateTime.parse(suggestion['expiration_date']),
+                _customDateFormat)
+            : '-';
+        String exp = isDateNull ? '' : '/ Exp. $formattedExpirationDate';
         return Column(
           children: [
             ListTile(
@@ -399,7 +402,8 @@ class _StockExitPageState extends State<StockExitPage> {
             fluxId: _STOCK_FROM_TO_PATIENT,
             isExit: 1,
             date: date,
-            description: 'Consommation',
+            description:
+                'Consommation ${element['inventory_text']} - ${element['lot_label']}',
             quantity: int.parse(element['quantity'] ?? 0),
             unitCost: element['unit_cost'].toDouble(),
           );

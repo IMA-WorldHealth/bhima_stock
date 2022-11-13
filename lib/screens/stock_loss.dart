@@ -412,7 +412,7 @@ class _StockLossPageState extends State<StockLossPage> {
             fluxId: _STOCK_TO_LOSS,
             isExit: 1,
             date: date,
-            description: 'PERTE DE STOCK',
+            description: 'PERTE DE STOCK\n ${_txtDescription.text}',
             quantity: int.parse(element['quantity'] ?? 0),
             unitCost: element['unit_cost'].toDouble(),
           );
@@ -465,6 +465,7 @@ class _StockLossPageState extends State<StockLossPage> {
                 return ListTile(
                   title: Text(value['inventory_text'] ?? ''),
                   subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(value['lot_label'] ?? ''),
                     ],
