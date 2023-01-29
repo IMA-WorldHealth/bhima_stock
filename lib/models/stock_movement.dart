@@ -206,6 +206,33 @@ class StockMovement {
     final db = await database;
 
     // Get data from local movements and latest online data received
+    // String query = '''
+    //   SELECT z.depot_uuid, z.inventory_text AS text, z.lot_label AS label,
+    //   SUM(z.quantity) quantity,
+    //   z.code, z.unit_type, z.isExit, z.inventory_uuid, z.lot_uuid,
+    //   z.expiration_date, z.unit_cost
+    //   FROM (
+    //     SELECT
+    //       i.uuid AS inventory_uuid, l.uuid AS lot_uuid,
+    //       m.depotUuid AS depot_uuid, i.label AS inventory_text, l.label AS lot_label,
+    //       SUM(IIF(m.isExit = 0, 1 * m.quantity, -1 * m.quantity)) quantity,
+    //       m.isExit, i.code, i.unit AS unit_type, l.expiration_date, l.unit_cost
+    //     FROM stock_movement m
+    //     JOIN inventory_lot l ON l.uuid = m.lotUuid
+    //     JOIN inventory i ON i.uuid = l.inventory_uuid
+    //     WHERE m.isSync IS null OR m.isSync = 0
+    //     GROUP BY m.depotUuid, l.inventory_uuid, l.uuid
+    //     UNION ALL
+    //     SELECT
+    //       lot.inventory_uuid AS inventory_uuid, lot.uuid AS lot_uuid,
+    //       lot.depot_uuid AS depot_uuid, lot.text AS inventory_text, lot.label AS lot_label, lot.quantity,
+    //       0 AS isExit, lot.code, lot.unit_type AS unit_type, lot.expiration_date, lot.unit_cost
+    //     FROM lot
+    //     GROUP BY lot.depot_uuid, lot.inventory_uuid, lot.uuid
+    //   ) z
+    //   GROUP BY z.depot_uuid, z.inventory_uuid, z.lot_uuid
+    //   ORDER BY z.inventory_text, z.lot_label;
+    // ''';
     String query = '''
       SELECT z.depot_uuid, z.inventory_text AS text, z.lot_label AS label,
       SUM(z.quantity) quantity,
@@ -215,7 +242,7 @@ class StockMovement {
         SELECT
           i.uuid AS inventory_uuid, l.uuid AS lot_uuid,
           m.depotUuid AS depot_uuid, i.label AS inventory_text, l.label AS lot_label,
-          SUM(IIF(m.isExit = 0, 1 * m.quantity, -1 * m.quantity)) quantity,
+          SUM(CASE WHEN m.isExit = 0 THEN 1 * m.quantity ELSE -1 * m.quantity END) quantity,
           m.isExit, i.code, i.unit AS unit_type, l.expiration_date, l.unit_cost
         FROM stock_movement m
         JOIN inventory_lot l ON l.uuid = m.lotUuid
@@ -324,5 +351,31 @@ class StockMovement {
       // Use a `where` clause to delete a specific depot.
       where: 'uuid IS NOT NULL',
     );
+  }
+
+  // get lots from local integrations
+  static Future<List> getLocalLots(dynamic database) async {
+    // Get a reference to the database.
+    final db = await database;
+
+    // Get data from local movements and latest online data received
+    String query = '''
+      SELECT
+        l.uuid,
+        l.label,
+        l.quantity,
+        l.unit_cost,
+        l.expiration_date,
+        l.inventory_uuid,
+        m.isSync,
+        m.movementUuid
+      FROM stock_movement m
+      JOIN lot l ON l.uuid = m.lotUuid
+      WHERE m.fluxId = 13 AND m.isExit = 0 AND (m.isSync IS NULL OR m.isSync = 0);
+    ''';
+    final List<Map<String, dynamic>> maps = await db.rawQuery(query);
+
+    // Convert the List<Map<String, dynamic> into a List<StockMovement>.
+    return maps;
   }
 }

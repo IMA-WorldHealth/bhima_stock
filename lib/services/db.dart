@@ -15,7 +15,9 @@ class BhimaDatabase {
       join(await getDatabasesPath(), 'bhima.db'),
       // When the database is first created, create a table to store depots.
       onCreate: (db, version) async {
-        join(await getDatabasesPath(), 'bhima.db');
+        String dbPath = join(await getDatabasesPath(), 'bhima.db');
+        print('DB Location : $dbPath');
+
         // Run the CREATE TABLE statement on the database.
         await db.execute(
           'CREATE TABLE depot(uuid TEXT PRIMARY KEY, "text" TEXT)',

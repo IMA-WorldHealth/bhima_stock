@@ -13,24 +13,24 @@ import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:uuid/uuid.dart';
 import 'package:darq/darq.dart';
 
-class StockExitPage extends StatefulWidget {
-  StockExitPage({Key? key}) : super(key: key);
+class StockLossPage extends StatefulWidget {
+  const StockLossPage({Key? key}) : super(key: key);
 
   @override
-  State<StockExitPage> createState() => _StockExitPageState();
+  State<StockLossPage> createState() => _StockLossPageState();
 }
 
-class _StockExitPageState extends State<StockExitPage> {
+class _StockLossPageState extends State<StockLossPage> {
   var database = BhimaDatabase.open();
   final _uuid = const Uuid();
   final _formKey = GlobalKey<FormState>();
-  final _STOCK_FROM_TO_PATIENT = 9;
+  final _STOCK_TO_LOSS = 11;
   final PageController _controller = PageController(
     initialPage: 0,
   );
 
   final TextEditingController _txtDate = TextEditingController();
-  final TextEditingController _txtReference = TextEditingController();
+  final TextEditingController _txtDescription = TextEditingController();
   final TextEditingController _txtQuantity = TextEditingController();
 
   String _selectedDepotUuid = '';
@@ -53,7 +53,7 @@ class _StockExitPageState extends State<StockExitPage> {
   void dispose() {
     _controller.dispose();
     _txtDate.dispose();
-    _txtReference.dispose();
+    _txtDescription.dispose();
     _txtQuantity.dispose();
     super.dispose();
   }
@@ -131,7 +131,7 @@ class _StockExitPageState extends State<StockExitPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sortie de stock'),
+        title: const Text('Perte de stock'),
         leading: Builder(
           builder: (context) {
             return IconButton(
@@ -256,13 +256,10 @@ class _StockExitPageState extends State<StockExitPage> {
         return await _loadInventoryLots(pattern);
       },
       itemBuilder: (context, dynamic suggestion) {
-        bool isDateNull = suggestion['expiration_date'] == null ||
-            suggestion['expiration_date'] == 'null';
-        var formattedExpirationDate = !isDateNull
-            ? formatDate(DateTime.parse(suggestion['expiration_date']),
-                _customDateFormat)
-            : '-';
-        String exp = isDateNull ? '' : '/ Exp. $formattedExpirationDate';
+        String exp = suggestion['expiration_date'] == null ||
+                suggestion['expiration_date'] == 'null'
+            ? ''
+            : '/ Exp. ${suggestion['expiration_date'].toString()}';
         return Column(
           children: [
             ListTile(
@@ -318,6 +315,19 @@ class _StockExitPageState extends State<StockExitPage> {
           ),
           icon: const Icon(Icons.date_range_sharp),
           label: Text(formattedSelectedDate),
+        ),
+        TextFormField(
+          controller: _txtDescription,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            labelText: "Raison de la perte",
+          ),
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return "Veuillez saisir la raison de la perte";
+            }
+            return null;
+          },
         ),
         TextFormField(
           controller: _txtQuantity,
@@ -399,11 +409,10 @@ class _StockExitPageState extends State<StockExitPage> {
             entityUuid: _selectedDepotUuid,
             periodId: int.parse(formatDate(date, [yyyy, mm])),
             userId: _userId,
-            fluxId: _STOCK_FROM_TO_PATIENT,
+            fluxId: _STOCK_TO_LOSS,
             isExit: 1,
             date: date,
-            description:
-                'Consommation ${element['inventory_text']} - ${element['lot_label']}',
+            description: 'PERTE DE STOCK\n ${_txtDescription.text}',
             quantity: int.parse(element['quantity'] ?? 0),
             unitCost: element['unit_cost'].toDouble(),
           );
@@ -415,7 +424,7 @@ class _StockExitPageState extends State<StockExitPage> {
     Future<dynamic> save() {
       return batchInsertMovements(lots).then((value) {
         var snackBar = const SnackBar(
-          content: Text('Sortie de stock réussie ✅'),
+          content: Text('Perte de stock réussie ✅'),
         );
 
         // Find the ScaffoldMessenger in the widget tree
@@ -455,7 +464,12 @@ class _StockExitPageState extends State<StockExitPage> {
                 var value = lots[index];
                 return ListTile(
                   title: Text(value['inventory_text'] ?? ''),
-                  subtitle: Text(value['lot_label'] ?? ''),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(value['lot_label'] ?? ''),
+                    ],
+                  ),
                   trailing: Chip(label: Text(value['quantity'] ?? '')),
                 );
               } else {

@@ -142,16 +142,36 @@ class _HomePageState extends State<HomePage> {
           .where((element) => element.isSync == 0 || element.isSync == null)
           .toList();
 
-      var grouped = lots.groupListsBy((element) => element.movementUuid);
+      var groupedByIsExit = lots.groupListsBy((element) => element.isExit);
 
-      _maxToSync = grouped.length;
+      List<StockMovement> exitMovement = [];
+      List<StockMovement> entryMovement = [];
+
+      groupedByIsExit.forEach((key, value) {
+        if (key == 1) {
+          exitMovement = value;
+        } else {
+          entryMovement = value;
+        }
+      });
+
+      var entryGrouped =
+          entryMovement.groupListsBy((element) => element.movementUuid);
+
+      var exitGrouped =
+          exitMovement.groupListsBy((element) => element.movementUuid);
+
+      _maxToSync = entryGrouped.length + exitGrouped.length;
       _countSynced = 0;
       _progress = _maxToSync != 0 ? 0 : 100;
-      grouped.forEach((key, value) async {
+
+      // NOTE: Sync entries first before exits
+
+      entryGrouped.forEach((key, value) async {
         var result =
             await connexion.post(url, {'lots': value, 'sync_mobile': 1});
 
-        if (key != null && result != null) {
+        if (key != null && result != null && result['uuids'] != null) {
           // update the sync status for valid lots of the movements
           await StockMovement.updateSyncStatus(database, key, result['uuids']);
           setState(() {
@@ -159,6 +179,40 @@ class _HomePageState extends State<HomePage> {
             _progress = ((_countSynced / _maxToSync) * 100).round();
           });
         }
+      });
+
+      // fetch fresh data from the server after entries
+      await fetchLots();
+
+      exitGrouped.forEach((key, value) async {
+        var result =
+            await connexion.post(url, {'lots': value, 'sync_mobile': 1});
+
+        if (key != null && result != null && result['uuids'] != null) {
+          // update the sync status for valid lots of the movements
+          await StockMovement.updateSyncStatus(database, key, result['uuids']);
+          setState(() {
+            _countSynced++;
+            _progress = ((_countSynced / _maxToSync) * 100).round();
+          });
+        }
+      });
+
+      // fetch fresh data from the server after exits
+      await fetchLots();
+    } catch (e) {
+      print(e);
+    }
+  }
+
+  // sync local lots from integration
+  Future syncLots() async {
+    try {
+      const url = '/stock/lots/create';
+      List lots = await StockMovement.getLocalLots(database);
+      var grouped = lots.groupListsBy((element) => element['movementUuid']);
+      grouped.forEach((key, value) async {
+        await connexion.post(url, {'lots': value});
       });
     } catch (e) {
       print(e);
@@ -178,11 +232,11 @@ class _HomePageState extends State<HomePage> {
         // set the connection to the server
         await serverConnection();
 
+        // send local lots
+        await syncLots();
+
         // send local stock movements (not synced)
         await syncStockMovements();
-
-        // fetch fresh data from the server
-        await fetchLots();
 
         setState(() {
           lastUpdate = DateTime.now();
@@ -208,6 +262,11 @@ class _HomePageState extends State<HomePage> {
       textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
       padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 20),
       primary: Colors.green[700],
+    );
+    final ButtonStyle btnRedStyle = ElevatedButton.styleFrom(
+      textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 20),
+      primary: Colors.red[700],
     );
 
     return Scaffold(
@@ -285,7 +344,27 @@ class _HomePageState extends State<HomePage> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: const <Widget>[
                             Icon(Icons.add),
-                            Text('Entrée de stock'),
+                            Text('Réception'),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/stock_integration')
+                              .then((value) => Provider.of<EntryMovement>(
+                                      context,
+                                      listen: false)
+                                  .reset());
+                        },
+                        style: btnStyle,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const <Widget>[
+                            Icon(Icons.add),
+                            Text('Integration de stock'),
                           ],
                         ),
                       ),
@@ -341,6 +420,25 @@ class _HomePageState extends State<HomePage> {
                                     semanticsLabel: 'Chargement...',
                                   )
                                 : const Text('Synchroniser'),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/stock_loss').then(
+                              (value) => Provider.of<EntryMovement>(context,
+                                      listen: false)
+                                  .reset());
+                        },
+                        style: btnRedStyle,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const <Widget>[
+                            Icon(Icons.delete_outline),
+                            Text('Perte de stock'),
                           ],
                         ),
                       ),

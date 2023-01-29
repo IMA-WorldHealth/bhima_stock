@@ -160,8 +160,7 @@ class _StockListPageState extends State<StockListPage> {
                     subtitle: Text('Code: ${values[index]['code']}'),
                     trailing: Chip(
                       backgroundColor: Colors.green[200],
-                      label: Text(
-                          'Qty: ${values[index]['quantity']} ${values[index]['unit_type']}'),
+                      label: Text('Qty: ${values[index]['quantity']}'),
                     ),
                   ),
                   createAssetTile(values[index]),
