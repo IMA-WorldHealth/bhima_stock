@@ -55,7 +55,7 @@ class _SettingsPageState extends State<SettingsPage> {
       /**
        * Include empty lots for having lots which are sent by not yet received
        */
-      const lotDataUrl = '/stock/lots/depots?includeEmptyLot=1';
+      const lotDataUrl = '/stock/lots/depots?includeEmptyLot=1&fullList=1';
 
       List lotsRaw = await connexion.api(lotDataUrl);
 
