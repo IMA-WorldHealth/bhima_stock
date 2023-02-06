@@ -12,6 +12,8 @@ import 'package:bhima_collect/models/stock_movement.dart';
 import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/services/db.dart';
 
+import '../components/card_bhima.dart';
+
 class StockEntryIntegration extends StatefulWidget {
   const StockEntryIntegration({Key? key}) : super(key: key);
 
@@ -67,16 +69,25 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     var pageViews = Column(
       children: <Widget>[
         Padding(
           padding: const EdgeInsets.all(5),
           child: Center(
-            child: Text(
-              _selectedDepotText,
-              style: TextStyle(
-                fontSize: 20,
-                color: Colors.blue[700],
+            child: CardBhima(
+              width: screenWidth - 2,
+              height: screenHeight / 12,
+              color: Colors.blue[400],
+              child: Center(
+                child: Text(
+                  _selectedDepotText,
+                  style: const TextStyle(
+                      fontSize: 20,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500),
+                ),
               ),
             ),
           ),
@@ -128,11 +139,16 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Integration de stock'),
+        backgroundColor: const Color.fromARGB(255, 183, 193, 203),
+        title: const Text(
+          'Integration de stock',
+          style: TextStyle(
+              fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black),
+        ),
         leading: Builder(
           builder: (context) {
             return IconButton(
-              icon: const Icon(Icons.arrow_back),
+              icon: const Icon(Icons.arrow_back, color: Colors.black),
               onPressed: () {
                 Navigator.pop(context, true);
               },

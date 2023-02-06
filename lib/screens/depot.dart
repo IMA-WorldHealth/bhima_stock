@@ -54,11 +54,16 @@ class _ConfigureDepotPageState extends State<ConfigureDepotPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Depot'),
+        backgroundColor: const Color.fromARGB(255, 183, 193, 203),
+        title: const Text('Dépôt',
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: Colors.black)),
         leading: Builder(
           builder: (context) {
             return IconButton(
-              icon: const Icon(Icons.arrow_back),
+              icon: const Icon(Icons.arrow_back, color: Colors.black),
               onPressed: () {
                 Navigator.pop(context, true);
               },
@@ -88,10 +93,11 @@ class _ConfigureDepotPageState extends State<ConfigureDepotPage> {
                       children: <Widget>[
                         FormBuilderRadioGroup<dynamic>(
                           decoration: const InputDecoration(
-                            labelText: 'Choisissez votre depot',
-                            alignLabelWithHint: false,
-                            border: InputBorder.none,
-                          ),
+                              labelText: 'Choisissez votre dépôt',
+                              alignLabelWithHint: false,
+                              border: InputBorder.none,
+                              labelStyle: TextStyle(
+                                  fontWeight: FontWeight.w500, fontSize: 18)),
                           orientation: OptionsOrientation.vertical,
                           initialValue: _selectedDepotUuid,
                           name: 'selected_depot_uuid',
@@ -101,7 +107,9 @@ class _ConfigureDepotPageState extends State<ConfigureDepotPage> {
                           options: (snapshot.data ?? [])
                               .map((depot) => FormBuilderFieldOption(
                                     value: depot.uuid,
-                                    child: Text(depot.text),
+                                    child: Text(depot.text,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w600)),
                                   ))
                               .toList(growable: true),
                           controlAffinity: ControlAffinity.trailing,

@@ -5,9 +5,10 @@ import 'package:bhima_collect/utilities/util.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:date_format/date_format.dart';
+import 'package:bhima_collect/components/card_bhima.dart';
 
 class StockListPage extends StatefulWidget {
-  StockListPage({Key? key}) : super(key: key);
+  const StockListPage({Key? key}) : super(key: key);
 
   @override
   State<StockListPage> createState() => _StockListPageState();
@@ -88,6 +89,9 @@ class _StockListPageState extends State<StockListPage> {
     var streamBuilder = StreamBuilder<List>(
       stream: _loadLots(_selectedDepotUuid),
       builder: ((context, snapshot) {
+        final screenWidth = MediaQuery.of(context).size.width;
+        final screenHeight = MediaQuery.of(context).size.height;
+
         switch (snapshot.connectionState) {
           case ConnectionState.none:
             return const Center(child: Text('Aucune connexion'));
@@ -102,11 +106,18 @@ class _StockListPageState extends State<StockListPage> {
                   Padding(
                     padding: const EdgeInsets.all(5),
                     child: Center(
-                      child: Text(
-                        _selectedDepotText,
-                        style: TextStyle(
-                          fontSize: 20,
-                          color: Colors.blue[700],
+                      child: CardBhima(
+                        width: screenWidth - 2,
+                        height: screenHeight / 12,
+                        color: Colors.blue[400],
+                        child: Center(
+                          child: Text(
+                            _selectedDepotText,
+                            style: const TextStyle(
+                                fontSize: 20,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500),
+                          ),
                         ),
                       ),
                     ),
@@ -128,11 +139,16 @@ class _StockListPageState extends State<StockListPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Stock'),
+        backgroundColor: const Color.fromARGB(255, 183, 193, 203),
+        title: const Text(
+          'Stock',
+          style: TextStyle(
+              fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black),
+        ),
         leading: Builder(
           builder: (context) {
             return IconButton(
-              icon: const Icon(Icons.arrow_back),
+              icon: const Icon(Icons.arrow_back, color: Colors.black),
               onPressed: () {
                 Navigator.pop(context, true);
               },
@@ -146,13 +162,20 @@ class _StockListPageState extends State<StockListPage> {
 
   Widget createListView(BuildContext context, AsyncSnapshot<List> snapshot) {
     List values = snapshot.data ?? [];
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
     return ListView.builder(
       itemCount: values.length,
       itemBuilder: ((context, index) {
         return Column(
           children: <Widget>[
-            Card(
-              elevation: 0.5,
+            CardBhima(
+              width: screenWidth - 15,
+              height: screenHeight / 6.5,
+              elevation: 2,
+              clipBehavior: Clip.hardEdge,
+              color: Colors.blueGrey[100],
               child: Column(
                 children: [
                   ListTile(

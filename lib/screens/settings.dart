@@ -4,6 +4,7 @@ import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/services/connect.dart';
 import 'package:bhima_collect/services/db.dart';
 import 'package:bhima_collect/utilities/util.dart';
+import 'package:bhima_collect/utilities/toast_bhima.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -21,6 +22,7 @@ class _SettingsPageState extends State<SettingsPage> {
   var txtUsername = TextEditingController();
   var txtPassword = TextEditingController();
 
+  bool _isObscure = true;
   bool _isButtonDisabled = false;
   bool _isConnectionSucceed = false;
   bool _isSyncFailed = false;
@@ -104,8 +106,7 @@ class _SettingsPageState extends State<SettingsPage> {
         _isLotsImported = true;
       });
     } catch (e) {
-      print(
-          'Error during fetch of lots : $e, $_serverUrl, $_username, $_password');
+      handleError(e.toString());
     }
   }
 
@@ -168,6 +169,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _isButtonDisabled = false;
         });
       } catch (e) {
+        handleError(e.toString());
         setState(() {
           _isSyncFailed = true;
         });
@@ -202,11 +204,16 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Parametres'),
+        backgroundColor: const Color.fromARGB(255, 183, 193, 203),
+        title: const Text(
+          'Paramètres',
+          style: TextStyle(
+              fontSize: 18, fontWeight: FontWeight.w500, color: Colors.black),
+        ),
         leading: Builder(
           builder: (context) {
             return IconButton(
-              icon: const Icon(Icons.arrow_back),
+              icon: const Icon(Icons.arrow_back, color: Colors.black),
               onPressed: () {
                 Navigator.pop(context, true);
               },
@@ -271,11 +278,20 @@ class _SettingsPageState extends State<SettingsPage> {
                   horizontal: 16,
                 ),
                 child: TextFormField(
-                  decoration: const InputDecoration(
-                    border: UnderlineInputBorder(),
-                    labelText: 'Entrez le mot de passe',
-                    icon: Icon(Icons.lock_outline),
-                  ),
+                  decoration: InputDecoration(
+                      border: const UnderlineInputBorder(),
+                      labelText: 'Entrez le mot de passe',
+                      icon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        onPressed: () {
+                          setState(() {
+                            _isObscure = !_isObscure;
+                          });
+                        },
+                        icon: Icon(_isObscure
+                            ? Icons.visibility
+                            : Icons.visibility_off),
+                      )),
                   onChanged: (value) {
                     setState(() {
                       _password = value;
@@ -288,7 +304,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     return null;
                   },
                   controller: txtPassword,
-                  obscureText: true,
+                  obscureText: _isObscure,
                   enableSuggestions: false,
                   autocorrect: false,
                 ),
@@ -308,10 +324,11 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               Center(
                 child: _isDepotSynced && _isLotsImported
-                    ? const Text(
-                        'Synchronisation des données réussie',
-                        style: TextStyle(color: Colors.green),
-                      )
+                    ? handleSuccess('Synchronisation des données réussie')
+                    // ? const Text(
+                    //     'Synchronisation des données réussie',
+                    //     style: TextStyle(color: Colors.green),
+                    //   )
                     : _isSyncFailed
                         ? const Text(
                             'Echec de synchronisation',

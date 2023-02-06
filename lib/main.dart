@@ -11,8 +11,24 @@ import 'package:bhima_collect/screens/stock_list.dart';
 import 'package:bhima_collect/screens/stock_loss.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/foundation.dart';
 
 void main() {
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    if (kDebugMode) {
+      return ErrorWidget(details.exception);
+    }
+    return Container(
+      alignment: Alignment.center,
+      child: Text(
+        'Error!\n${details.exception}',
+        style: const TextStyle(color: Colors.yellow),
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.ltr,
+      ),
+    );
+  };
+
   runApp(MultiProvider(
     providers: [
       ChangeNotifierProvider(create: (_) => CurrentDepotProvider()),

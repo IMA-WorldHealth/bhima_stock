@@ -6,13 +6,18 @@ import 'package:bhima_collect/providers/exit_movement.dart';
 import 'package:bhima_collect/screens/depot.dart';
 import 'package:bhima_collect/screens/settings.dart';
 import 'package:bhima_collect/services/db.dart';
+import 'package:bhima_collect/utilities/toast_bhima.dart';
 import 'package:date_format/date_format.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bhima_collect/services/connect.dart';
 import 'package:bhima_collect/utilities/util.dart';
 import "package:collection/collection.dart";
+import "package:yaml/yaml.dart";
+import "package:bhima_collect/components/card_bhima.dart";
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -32,10 +37,10 @@ class _HomePageState extends State<HomePage> {
   String _serverUrl = '';
   String _username = '';
   String _password = '';
-  int _importedRecords = 0;
   num _progress = 0;
   int _countSynced = 0;
   int _maxToSync = 0;
+  final scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
@@ -52,7 +57,6 @@ class _HomePageState extends State<HomePage> {
       _password = (prefs.getString('password') ?? '');
       _selectedDepotText = (prefs.getString('selected_depot_text') ?? '');
       _formattedLastUpdate = (prefs.getString('last_sync_date') ?? '');
-      _importedRecords = (prefs.getInt('last_sync_items') ?? 0);
       _isRecentSync = (prefs.getInt('last_sync') ?? 0) == 0 ? false : true;
     });
   }
@@ -71,7 +75,9 @@ class _HomePageState extends State<HomePage> {
     try {
       // init connexion by getting the user token
       await connexion.getToken(_serverUrl, _username, _password);
-    } catch (e) {}
+    } catch (e) {
+      handleError(e.toString());
+    }
   }
 
   Future fetchLots() async {
@@ -123,12 +129,12 @@ class _HomePageState extends State<HomePage> {
       // import into inventory_lot and inventory table
       await InventoryLot.import(database);
 
-      setState(() {
-        _importedRecords = lots.length;
-      });
+      setState(() {});
     } catch (e) {
-      print(
-          'Error during fetch of lots : $e, $_serverUrl, $_username, $_password');
+      if (kDebugMode) {
+        print(e);
+      }
+      handleError(e.toString());
     }
   }
 
@@ -201,7 +207,10 @@ class _HomePageState extends State<HomePage> {
       // fetch fresh data from the server after exits
       await fetchLots();
     } catch (e) {
-      print(e);
+      if (kDebugMode) {
+        print(e);
+      }
+      handleError(e.toString());
     }
   }
 
@@ -215,7 +224,10 @@ class _HomePageState extends State<HomePage> {
         await connexion.post(url, {'lots': value});
       });
     } catch (e) {
-      print(e);
+      if (kDebugMode) {
+        print(e);
+      }
+      handleError(e.toString());
     }
   }
 
@@ -251,230 +263,420 @@ class _HomePageState extends State<HomePage> {
         setState(() {
           _isSyncing = false;
         });
-        print(e);
+        if (kDebugMode) {
+          print(e);
+        }
+        handleError(e.toString());
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final screenHeght = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
     final ButtonStyle btnStyle = ElevatedButton.styleFrom(
       textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+      backgroundColor: Colors.green[700],
       padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 20),
-      primary: Colors.green[700],
     );
     final ButtonStyle btnRedStyle = ElevatedButton.styleFrom(
       textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+      backgroundColor: Colors.red[700],
       padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 20),
-      primary: Colors.red[700],
     );
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: Image.asset(
-          'assets/icon.png',
-        ),
-        title: const Text('BHIMA'),
-        actions: <Widget>[
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert_rounded),
-            onSelected: (value) {
-              switch (value) {
-                case 'Choisir Dépôt':
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const ConfigureDepotPage()),
-                  ).then((value) => value ? _loadSavedPreferences() : null);
-                  break;
-                case 'Paramètres':
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const SettingsPage()),
-                  ).then((value) => value ? _loadSavedPreferences() : null);
-                  break;
-              }
+    var drawerContent = Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          DrawerHeader(
+            decoration:
+                const BoxDecoration(color: Color.fromARGB(255, 183, 193, 203)),
+            // ignore: unnecessary_const
+            child: Center(
+              child: Column(
+                children: [
+                  const Padding(
+                      padding: EdgeInsets.all(2),
+                      child: Image(
+                        image: AssetImage('assets/icon.png'),
+                        height: 60,
+                        width: 130,
+                        fit: BoxFit.contain,
+                      )),
+                  const Padding(
+                    padding: EdgeInsets.all(5),
+                    child: Text(
+                      'Bhima collect',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(5),
+                    child: FutureBuilder(
+                        future: rootBundle.loadString("pubspec.yaml"),
+                        builder: (context, snapshot) {
+                          String version = 'Unknown';
+                          if (snapshot.hasData) {
+                            var yaml = loadYaml(snapshot.data as String);
+                            version = yaml["version"];
+                          }
+                          return Text(
+                            'Version $version',
+                            style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w400,
+                                fontStyle: FontStyle.italic),
+                          );
+                        }),
+                  )
+                ],
+              ),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.home_max),
+            title: const Text(
+              'Choisir Dépôt',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w500),
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const ConfigureDepotPage()),
+              ).then((value) => {
+                    value ? _loadSavedPreferences() : null,
+                    Navigator.pop(context)
+                  });
             },
-            itemBuilder: (BuildContext context) {
-              return {'Choisir Dépôt', 'Paramètres'}.map((String choice) {
-                return PopupMenuItem<String>(
-                  value: choice,
-                  child: Text(choice),
-                );
-              }).toList();
+          ),
+          ListTile(
+            leading: const Icon(Icons.settings),
+            title: const Text(
+              'Paramètres',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w500),
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsPage()),
+              ).then((value) => {
+                    value ? _loadSavedPreferences() : null,
+                    Navigator.pop(context)
+                  });
             },
           ),
         ],
       ),
-      body: _selectedDepotText != ''
-          ? Padding(
-              padding: const EdgeInsets.all(10.0),
-              child: SizedBox(
-                width: double.infinity,
-                child: ListView(
-                  children: <Widget>[
-                    const Padding(
-                      padding: EdgeInsets.all(5),
-                      child: Center(child: Text('Votre depot en cours est')),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(5),
-                      child: Center(
-                        child: Text(
-                          _selectedDepotText,
-                          style: TextStyle(
-                            fontSize: 20,
-                            color: Colors.blue[700],
-                          ),
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/stock_entry').then(
-                              (value) => Provider.of<EntryMovement>(context,
-                                      listen: false)
-                                  .reset());
-                        },
-                        style: btnStyle,
-                        child: Row(
+    );
+
+    return Scaffold(
+        key: scaffoldKey,
+        appBar: AppBar(
+          toolbarOpacity: 0.8,
+          leading: Builder(builder: (BuildContext context) {
+            return IconButton(
+              icon: const Icon(Icons.menu_sharp, size: 30, color: Colors.black),
+              onPressed: () {
+                scaffoldKey.currentState?.openDrawer();
+              },
+            );
+          }),
+          backgroundColor: const Color.fromARGB(255, 183, 193, 203),
+          title: const Text(
+            'Acceuil',
+            style: TextStyle(
+                fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black),
+          ),
+        ),
+        drawer: drawerContent,
+        body: _selectedDepotText != ''
+            ? Padding(
+                padding: const EdgeInsets.all(10.0),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ListView(
+                    children: <Widget>[
+                      CardBhima(
+                        color: Colors.lime[600],
+                        height: screenHeght / 8,
+                        elevation: 2,
+                        child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: const <Widget>[
-                            Icon(Icons.add),
-                            Text('Réception'),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/stock_integration')
-                              .then((value) => Provider.of<EntryMovement>(
-                                      context,
-                                      listen: false)
-                                  .reset());
-                        },
-                        style: btnStyle,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const <Widget>[
-                            Icon(Icons.add),
-                            Text('Integration de stock'),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/stock');
-                        },
-                        style: btnStyle,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const <Widget>[
-                            Text('Stock'),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/stock_exit').then(
-                              (value) => Provider.of<ExitMovement>(context,
-                                      listen: false)
-                                  .reset());
-                        },
-                        style: btnStyle,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const <Widget>[
-                            Icon(Icons.people_alt_rounded),
+                          children: [
+                            const Padding(
+                              padding: EdgeInsets.all(5),
+                              child: Text('Votre dépôt en cours est :',
+                                  style: TextStyle(
+                                      fontSize: 15,
+                                      color: Colors.black,
+                                      fontWeight: FontWeight.w500)),
+                            ),
                             Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 8),
-                              child: Text('Consommation'),
+                              padding: const EdgeInsets.all(5),
+                              child: Center(
+                                child: Text(
+                                  _selectedDepotText,
+                                  style: const TextStyle(
+                                      fontSize: 20,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                              ),
                             ),
                           ],
                         ),
                       ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: ElevatedButton(
-                        onPressed: syncBtnClicked,
-                        style: btnStyle,
+                      Padding(
+                        // padding: const EdgeInsets.all(10.0),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 3, horizontal: 5),
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: <Widget>[
-                            _isSyncing
-                                ? const CircularProgressIndicator(
-                                    color: Colors.white,
-                                    semanticsLabel: 'Chargement...',
-                                  )
-                                : const Text('Synchroniser'),
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            CardBhima(
+                              onTap: () {
+                                Navigator.pushNamed(context, '/stock_entry')
+                                    .then((value) => Provider.of<EntryMovement>(
+                                            context,
+                                            listen: false)
+                                        .reset());
+                              },
+                              color: Colors.orange[300],
+                              width: screenWidth / 2.3,
+                              height: 95,
+                              elevation: 2,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: const <Widget>[
+                                  Icon(Icons.add,
+                                      size: 26, color: Colors.white),
+                                  Text('Réception',
+                                      style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                              // ),
+                            ),
+                            CardBhima(
+                              color: Colors.blue[300],
+                              width: screenWidth / 2.3,
+                              elevation: 2,
+                              height: 95,
+                              onTap: () {
+                                Navigator.pushNamed(
+                                        context, '/stock_integration')
+                                    .then((value) => Provider.of<EntryMovement>(
+                                            context,
+                                            listen: false)
+                                        .reset());
+                              },
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: const <Widget>[
+                                  Icon(Icons.add,
+                                      size: 26, color: Colors.white),
+                                  Text(
+                                    'Integration de stock',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // ),
                           ],
                         ),
                       ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/stock_loss').then(
-                              (value) => Provider.of<EntryMovement>(context,
-                                      listen: false)
-                                  .reset());
-                        },
-                        style: btnRedStyle,
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 3, horizontal: 5),
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const <Widget>[
-                            Icon(Icons.delete_outline),
-                            Text('Perte de stock'),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: _progress > 0
-                          ? Column(
-                              children: <Widget>[
-                                LinearProgressIndicator(
-                                  value: _progress.toDouble(),
-                                  semanticsLabel: '$_progress %',
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              CardBhima(
+                                color: const Color.fromARGB(255, 100, 105, 246),
+                                width: screenWidth / 2.3,
+                                height: 95,
+                                elevation: 2,
+                                onTap: () {
+                                  Navigator.pushNamed(context, '/stock');
+                                },
+                                // style: btnStyle,
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: const <Widget>[
+                                    Icon(
+                                      Icons.inventory_sharp,
+                                      size: 26,
+                                      color: Colors.white,
+                                    ),
+                                    Text('Stock',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold)),
+                                  ],
                                 ),
-                                Text('$_progress %')
-                              ],
-                            )
-                          : Row(),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: _isRecentSync
-                          ? Column(
-                              children: <Widget>[
-                                const Text('Dernière synchronisation'),
-                                Text(_formattedLastUpdate),
-                                Text(
-                                    'Données synchronisées : $_countSynced / $_maxToSync'),
-                              ],
-                            )
-                          : Row(),
-                    )
-                  ],
+                              ),
+                              CardBhima(
+                                color: const Color.fromARGB(255, 149, 81, 127),
+                                width: screenWidth / 2.3,
+                                elevation: 2,
+                                height: 95,
+                                onTap: () {
+                                  Navigator.pushNamed(context, '/stock_exit')
+                                      .then((value) =>
+                                          Provider.of<ExitMovement>(context,
+                                                  listen: false)
+                                              .reset());
+                                },
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: const <Widget>[
+                                    Icon(
+                                      Icons.people_alt_rounded,
+                                      size: 26,
+                                      color: Colors.white,
+                                    ),
+                                    Padding(
+                                      padding:
+                                          EdgeInsets.symmetric(horizontal: 8),
+                                      child: Text('Consommation',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ]),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 3, horizontal: 5),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            CardBhima(
+                              color: Colors.green[900],
+                              width: screenWidth / 2.3,
+                              elevation: 2,
+                              height: 95,
+                              onTap: syncBtnClicked,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: <Widget>[
+                                  _isSyncing
+                                      ? const CircularProgressIndicator(
+                                          color: Colors.white,
+                                          semanticsLabel: 'Chargement...',
+                                        )
+                                      : const Text(
+                                          'Synchroniser',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold),
+                                        ),
+                                ],
+                              ),
+                            ),
+                            CardBhima(
+                              color: Colors.red[900],
+                              width: screenWidth / 2.3,
+                              elevation: 2,
+                              height: 95,
+                              onTap: () {
+                                Navigator.pushNamed(context, '/stock_loss')
+                                    .then((value) => Provider.of<EntryMovement>(
+                                            context,
+                                            listen: false)
+                                        .reset());
+                              },
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: const <Widget>[
+                                  Icon(
+                                    Icons.delete_outline,
+                                    size: 26,
+                                    color: Colors.white,
+                                  ),
+                                  Text('Perte de stock',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: _progress > 0
+                            ? Column(
+                                children: <Widget>[
+                                  LinearProgressIndicator(
+                                    value: _progress.toDouble(),
+                                    semanticsLabel: '$_progress %',
+                                  ),
+                                  Text('$_progress %')
+                                ],
+                              )
+                            : Row(),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: _isRecentSync
+                            ? Column(
+                                children: <Widget>[
+                                  const Text('Dernière synchronisation'),
+                                  Text(_formattedLastUpdate),
+                                  Text(
+                                      'Données synchronisées : $_countSynced / $_maxToSync'),
+                                ],
+                              )
+                            : Row(),
+                      )
+                    ],
+                  ),
                 ),
-              ),
-            )
-          : const Center(child: Text('Veuillez choisir un dépôt')),
-    );
+              )
+            : Center(
+                child: CardBhima(
+                  width: screenWidth / 1.5,
+                  height: 80,
+                  elevation: 2,
+                  clipBehavior: Clip.hardEdge,
+                  color: const Color.fromARGB(255, 183, 193, 203),
+                  onTap: () {
+                    scaffoldKey.currentState?.openDrawer();
+                  },
+                  child: const Center(
+                    child: Text(
+                      'Veuillez choisir un dépôt',
+                      style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.black,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+              ));
   }
 }
