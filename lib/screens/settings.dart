@@ -5,6 +5,7 @@ import 'package:bhima_collect/services/connect.dart';
 import 'package:bhima_collect/services/db.dart';
 import 'package:bhima_collect/utilities/util.dart';
 import 'package:bhima_collect/utilities/toast_bhima.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -140,6 +141,9 @@ class _SettingsPageState extends State<SettingsPage> {
         _isDepotSynced = true;
       });
     } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
       setState(() {
         _isDepotSynced = false;
       });
@@ -169,6 +173,10 @@ class _SettingsPageState extends State<SettingsPage> {
           _isButtonDisabled = false;
         });
       } catch (e) {
+        if (kDebugMode) {
+          print(
+              'Error during fetch of lots : $e, $_serverUrl, $_username, $_password');
+        }
         handleError(e.toString());
         setState(() {
           _isSyncFailed = true;
