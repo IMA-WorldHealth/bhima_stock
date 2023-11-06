@@ -11,8 +11,7 @@ import 'package:bhima_collect/providers/entry_movement.dart';
 import 'package:bhima_collect/models/stock_movement.dart';
 import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/services/db.dart';
-
-import '../components/card_bhima.dart';
+import 'package:bhima_collect/components/card_bhima.dart';
 
 class StockEntryIntegration extends StatefulWidget {
   const StockEntryIntegration({Key? key}) : super(key: key);
@@ -36,7 +35,6 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
   String _selectedDepotUuid = '';
   String _selectedDepotText = '';
   int? _userId;
-  bool _savingSucceed = false;
 
   DateTime _selectedDate = DateTime.now();
   final _customDateFormat = [dd, ' ', MM, ' ', yyyy];
@@ -484,9 +482,7 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
         // back to home
         Navigator.pushNamed(context, '/');
 
-        setState(() {
-          _savingSucceed = true;
-        });
+        setState(() {});
 
         return true;
       });

@@ -1,4 +1,4 @@
-import 'package:bhima_collect/models/lot.dart';
+// import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/models/stock_movement.dart';
 import 'package:bhima_collect/services/db.dart';
 import 'package:bhima_collect/utilities/util.dart';

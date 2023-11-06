@@ -67,7 +67,7 @@ class _MyAppState extends State<MyApp> {
         '/': (context) => const HomePage(),
         '/depots': (context) => const ConfigureDepotPage(),
         '/settings': (context) => const SettingsPage(),
-        '/stock': (context) => StockListPage(),
+        '/stock': (context) => const StockListPage(),
         '/stock_entry': (context) => StockEntryPage(),
         '/stock_exit': (context) => StockExitPage(),
         '/stock_integration': (context) => const StockEntryIntegration(),

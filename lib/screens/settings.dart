@@ -25,7 +25,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
   bool _isObscure = true;
   bool _isButtonDisabled = false;
-  bool _isConnectionSucceed = false;
   bool _isSyncFailed = false;
   bool _isDepotSynced = false;
   bool _isLotsImported = false;
@@ -40,17 +39,12 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future checkServerConnection() async {
-    _isConnectionSucceed = false;
     try {
       // init connexion by getting the user token
       await connexion.getToken(_serverUrl, _username, _password);
       // update the connection status message
-      setState(() {
-        _isConnectionSucceed = true;
-      });
-    } catch (e) {
-      _isConnectionSucceed = false;
-    }
+      setState(() {});
+    } catch (e) {}
   }
 
   Future fetchLots() async {
@@ -338,10 +332,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     //     style: TextStyle(color: Colors.green),
                     //   )
                     : _isSyncFailed
-                        ? const Text(
-                            'Echec de synchronisation',
-                            style: TextStyle(color: Colors.red),
-                          )
+                        ? handleError('Echec de synchronisation')
                         : null,
               )
             ],

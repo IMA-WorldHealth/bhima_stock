@@ -2,7 +2,6 @@ import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/models/stock_movement.dart';
 import 'package:bhima_collect/providers/entry_movement.dart';
 import 'package:bhima_collect/services/db.dart';
-import 'package:bhima_collect/utilities/util.dart';
 import 'package:date_format/date_format.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -35,7 +34,6 @@ class _StockEntryPageState extends State<StockEntryPage> {
   String _selectedDepotUuid = '';
   String _selectedDepotText = '';
   int? _userId;
-  bool _savingSucceed = false;
 
   DateTime _selectedDate = DateTime.now();
   final _customDateFormat = [dd, ' ', MM, ' ', yyyy];
@@ -436,9 +434,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
         // back to home
         Navigator.pushNamed(context, '/');
 
-        setState(() {
-          _savingSucceed = true;
-        });
+        setState(() {});
 
         return true;
       });

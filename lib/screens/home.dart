@@ -273,18 +273,18 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final screenHeght = MediaQuery.of(context).size.height;
+    final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
-    final ButtonStyle btnStyle = ElevatedButton.styleFrom(
-      textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-      backgroundColor: Colors.green[700],
-      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 20),
-    );
-    final ButtonStyle btnRedStyle = ElevatedButton.styleFrom(
-      textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-      backgroundColor: Colors.red[700],
-      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 20),
-    );
+    // final ButtonStyle btnStyle = ElevatedButton.styleFrom(
+    //   textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+    //   backgroundColor: Colors.green[700],
+    //   padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 20),
+    // );
+    // final ButtonStyle btnRedStyle = ElevatedButton.styleFrom(
+    //   textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+    //   backgroundColor: Colors.red[700],
+    //   padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 20),
+    // );
 
     var drawerContent = Drawer(
       child: ListView(
@@ -402,7 +402,7 @@ class _HomePageState extends State<HomePage> {
                     children: <Widget>[
                       CardBhima(
                         color: Colors.lime[600],
-                        height: screenHeght / 8,
+                        height: screenHeight / 8,
                         elevation: 2,
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -449,9 +449,9 @@ class _HomePageState extends State<HomePage> {
                               width: screenWidth / 2.3,
                               height: 95,
                               elevation: 2,
-                              child: Column(
+                              child: const Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
-                                children: const <Widget>[
+                                children: <Widget>[
                                   Icon(Icons.add,
                                       size: 26, color: Colors.white),
                                   Text('Réception',
@@ -476,9 +476,9 @@ class _HomePageState extends State<HomePage> {
                                             listen: false)
                                         .reset());
                               },
-                              child: Column(
+                              child: const Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
-                                children: const <Widget>[
+                                children: <Widget>[
                                   Icon(Icons.add,
                                       size: 26, color: Colors.white),
                                   Text(
@@ -511,9 +511,9 @@ class _HomePageState extends State<HomePage> {
                                   Navigator.pushNamed(context, '/stock');
                                 },
                                 // style: btnStyle,
-                                child: Column(
+                                child: const Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
-                                  children: const <Widget>[
+                                  children: <Widget>[
                                     Icon(
                                       Icons.inventory_sharp,
                                       size: 26,
@@ -540,9 +540,9 @@ class _HomePageState extends State<HomePage> {
                                                   listen: false)
                                               .reset());
                                 },
-                                child: Column(
+                                child: const Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
-                                  children: const <Widget>[
+                                  children: <Widget>[
                                     Icon(
                                       Icons.people_alt_rounded,
                                       size: 26,
@@ -606,9 +606,9 @@ class _HomePageState extends State<HomePage> {
                                             listen: false)
                                         .reset());
                               },
-                              child: Column(
+                              child: const Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
-                                children: const <Widget>[
+                                children: <Widget>[
                                   Icon(
                                     Icons.delete_outline,
                                     size: 26,
