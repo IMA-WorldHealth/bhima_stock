@@ -1,3 +1,5 @@
+// ignore_for_file: unnecessary_new
+
 import 'package:sqflite/sqflite.dart';
 
 class Depot {
@@ -61,6 +63,18 @@ class Depot {
       depot.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  // Define a function that insert the array depots into database with transaction
+  static Future<void> txInsertLot(dynamic database, List<Depot> depots) async {
+    await database.transaction((txn) async {
+      var batch = txn.batch();
+      for (var depot in depots) {
+        batch.insert('depot', depot.toMap(),
+            conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+      await batch.commit();
+    });
   }
 
   static Future<void> updateDepot(dynamic database, Depot depot) async {

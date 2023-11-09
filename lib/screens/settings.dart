@@ -1,14 +1,21 @@
+import 'dart:async';
+
 import 'package:bhima_collect/models/depot.dart';
 import 'package:bhima_collect/models/inventory_lot.dart';
 import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/services/connect.dart';
 import 'package:bhima_collect/services/db.dart';
 import 'package:bhima_collect/utilities/util.dart';
+// import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+// import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:bhima_collect/utilities/toast_bhima.dart';
 
+@immutable
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({Key? key}) : super(key: key);
+  const SettingsPage({super.key});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -20,12 +27,14 @@ class _SettingsPageState extends State<SettingsPage> {
   var txtServerUrl = TextEditingController();
   var txtUsername = TextEditingController();
   var txtPassword = TextEditingController();
+  // late StreamSubscription subscription;
 
   bool _isButtonDisabled = false;
   bool _isConnectionSucceed = false;
   bool _isSyncFailed = false;
   bool _isDepotSynced = false;
   bool _isLotsImported = false;
+  bool isDeviceConnected = false;
   String _serverUrl = '';
   String _username = '';
   String _password = '';
@@ -47,6 +56,7 @@ class _SettingsPageState extends State<SettingsPage> {
       });
     } catch (e) {
       _isConnectionSucceed = false;
+      throw Exception(e);
     }
   }
 
@@ -93,10 +103,11 @@ class _SettingsPageState extends State<SettingsPage> {
       // clean previous lots
       Lot.clean(database);
       // write new entries
+      // ignore: avoid_function_literals_in_foreach_calls
       lots.forEach((lot) async {
         await Lot.insertLot(database, lot);
       });
-
+      // await Lot.txInsertLot(database, lots);
       // import into inventory_lot and inventory table
       await InventoryLot.import(database);
 
@@ -104,8 +115,10 @@ class _SettingsPageState extends State<SettingsPage> {
         _isLotsImported = true;
       });
     } catch (e) {
-      print(
-          'Error during fetch of lots : $e, $_serverUrl, $_username, $_password');
+      setState(() {
+        _isLotsImported = false;
+      });
+      throw Exception(e);
     }
   }
 
@@ -114,7 +127,6 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       // get all depots
       List depots = await connexion.api('/depots');
-
       // get only depots of the given user
       List userDepots =
           await connexion.api('/users/${connexion.user['id']}/depots');
@@ -131,22 +143,33 @@ class _SettingsPageState extends State<SettingsPage> {
       // clean previous data
       Depot.clean(database);
       // write new fresh depots entries
+      // ignore: avoid_function_literals_in_foreach_calls
       userDepotList.forEach((depot) async {
         await Depot.insertDepot(database, depot);
       });
-
+      // await Depot.txInsertLot(database, userDepotList);
+      // userDepotList.forEach((depot) async {
+      //   await Depot.insertDepot(database, depot);
+      // });
       setState(() {
         _isDepotSynced = true;
       });
     } catch (e) {
+      if (kDebugMode) {
+        print('ERROR SYNC DEpot :  $e');
+      }
       setState(() {
         _isDepotSynced = false;
       });
+      throw Exception(e);
     }
   }
 
   Future submit() async {
     if (_formKey.currentState!.validate()) {
+      // if (!isDeviceConnected) {
+      //   return handleError("Vous n'etes pas connecté à un réseau");
+      // }
       try {
         setState(() {
           _isButtonDisabled = true;
@@ -163,16 +186,27 @@ class _SettingsPageState extends State<SettingsPage> {
 
         // save settings as preferences
         await _saveSettings();
-
         setState(() {
           _isButtonDisabled = false;
         });
+
+        // ignore: use_build_context_synchronously
+        alertSuccess(context, 'Synchronisation des données réussie');
       } catch (e) {
+        setState(() {
+          _isButtonDisabled = false;
+        });
         setState(() {
           _isSyncFailed = true;
         });
+        // ignore: use_build_context_synchronously
+        alertError(context, 'Echec de synchronisation');
       }
     }
+  }
+
+  displayNotification(String message) {
+    handleError(message, context);
   }
 
   //Loading settings values on start
@@ -306,19 +340,6 @@ class _SettingsPageState extends State<SettingsPage> {
                       : const Text('Soumettre'),
                 ),
               ),
-              Center(
-                child: _isDepotSynced && _isLotsImported
-                    ? const Text(
-                        'Synchronisation des données réussie',
-                        style: TextStyle(color: Colors.green),
-                      )
-                    : _isSyncFailed
-                        ? const Text(
-                            'Echec de synchronisation',
-                            style: TextStyle(color: Colors.red),
-                          )
-                        : null,
-              )
             ],
           )),
     );

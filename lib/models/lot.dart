@@ -1,5 +1,6 @@
 // ignore_for_file: non_constant_identifier_names
 import 'package:bhima_collect/utilities/util.dart';
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqlite_api.dart';
 
 class Lot {
@@ -225,6 +226,18 @@ class Lot {
       lot.toMap(),
       conflictAlgorithm: ConflictAlgorithm.ignore,
     );
+  }
+
+  // Define a function that insert the array lot into database with transaction
+  static Future<dynamic> txInsertLot(dynamic database, List<Lot> lots) async {
+    await database.transaction((txn) async {
+      var batch = txn.batch();
+      for (var lot in lots) {
+        batch.insert('lot', lot.toMap(),
+            conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+      await batch.commit();
+    });
   }
 
   static Future<void> updateLot(dynamic database, Lot lot) async {

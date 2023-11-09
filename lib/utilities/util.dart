@@ -1,4 +1,7 @@
 // dynamic parsed to boolean
+
+import 'package:flutter/foundation.dart';
+
 bool? parseBool(value) {
   bool isTrue =
       (value == 1 || value == '1' || value == 'true' || value == true);
@@ -17,8 +20,15 @@ DateTime? parseDate(value) {
   if (value == '' || value == 'null' || value == null) {
     return null;
   } else {
-    return DateTime.parse(value.substring(0, 10));
+    try {
+      return DateTime.parse(value.substring(0, 10));
+    } catch (e) {
+      if (kDebugMode) {
+        print('ERROR DATE FOrmat:  $e');
+      }
+    }
   }
+  return null;
 }
 
 dynamic nullToZerro(value) {

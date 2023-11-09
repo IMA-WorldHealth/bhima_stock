@@ -1,4 +1,3 @@
-import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/models/stock_movement.dart';
 import 'package:bhima_collect/services/db.dart';
 import 'package:bhima_collect/utilities/util.dart';
@@ -7,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:date_format/date_format.dart';
 
 class StockListPage extends StatefulWidget {
-  StockListPage({Key? key}) : super(key: key);
+  const StockListPage({super.key});
 
   @override
   State<StockListPage> createState() => _StockListPageState();
@@ -43,48 +42,6 @@ class _StockListPageState extends State<StockListPage> {
 
   @override
   Widget build(BuildContext context) {
-    // FutureBuilder for list of lots
-    // var futureBuilder = FutureBuilder<List<Lot>>(
-    //   future: _loadLots(),
-    //   builder: ((context, snapshot) {
-    //     switch (snapshot.connectionState) {
-    //       case ConnectionState.none:
-    //         return const Center(child: Text('Aucune connexion'));
-    //       case ConnectionState.waiting:
-    //         return const Center(child: CircularProgressIndicator());
-    //       default:
-    //         if (snapshot.hasError) {
-    //           return Center(child: Text('${snapshot.error}'));
-    //         } else if (snapshot.hasData) {
-    //           return Column(
-    //             children: <Widget>[
-    //               Padding(
-    //                 padding: const EdgeInsets.all(5),
-    //                 child: Center(
-    //                   child: Text(
-    //                     _selectedDepotText,
-    //                     style: TextStyle(
-    //                       fontSize: 20,
-    //                       color: Colors.blue[700],
-    //                     ),
-    //                   ),
-    //                 ),
-    //               ),
-    //               Expanded(
-    //                 child: createListView(context, snapshot),
-    //               )
-    //             ],
-    //           );
-    //           // return createListView(context, snapshot);
-    //         } else {
-    //           return const Center(
-    //             child: Text('Aucune données trouvées'),
-    //           );
-    //         }
-    //     }
-    //   }),
-    // );
-
     var streamBuilder = StreamBuilder<List>(
       stream: _loadLots(_selectedDepotUuid),
       builder: ((context, snapshot) {
@@ -191,7 +148,7 @@ class _StockListPageState extends State<StockListPage> {
       );
     } else {
       // Empty Widget
-      return Row();
+      return const Row();
     }
   }
 
@@ -202,9 +159,9 @@ class _StockListPageState extends State<StockListPage> {
     } else {
       rawExpirationDate = value['expiration_date'];
     }
-    String expirationDate = rawExpirationDate != null
+    dynamic expirationDate = rawExpirationDate != null
         ? formatDate(rawExpirationDate, [MM, '-', yyyy])
-        : '';
+        : null;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
       child: Row(
@@ -212,12 +169,17 @@ class _StockListPageState extends State<StockListPage> {
           Chip(
             label: Text('Lot: ${value['label']}'),
           ),
-          if (value['expiration_date'] != null)
-            Chip(
-              avatar: const Icon(Icons.timelapse_rounded),
-              backgroundColor: Colors.orange[200],
-              label: Text(expirationDate),
-            ),
+          expirationDate != null
+              ? Chip(
+                  avatar: const Icon(Icons.timelapse_rounded),
+                  backgroundColor: Colors.orange[200],
+                  label: Text(expirationDate),
+                )
+              : Chip(
+                  avatar: const Icon(Icons.no_backpack_rounded),
+                  backgroundColor: Colors.red[300],
+                  label: const Text('Invalid date'),
+                ),
         ],
       ),
     );

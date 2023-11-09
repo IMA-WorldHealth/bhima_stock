@@ -51,7 +51,6 @@ class Connect {
   Future<dynamic> api(String url) async {
     String endPoint = '$_server$url';
     String token = await getToken(_server, _username, _password);
-
     var response = await http.get(
       Uri.parse(endPoint),
       headers: <String, String>{
@@ -67,7 +66,6 @@ class Connect {
   Future post(String url, dynamic params) async {
     String endPoint = '$_server$url';
     String token = await getToken(_server, _username, _password);
-
     var response = await http.post(Uri.parse(endPoint),
         headers: <String, String>{
           'Content-Type': 'application/json; charset=UTF-8',

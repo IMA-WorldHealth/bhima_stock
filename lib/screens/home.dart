@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bhima_collect/models/inventory_lot.dart';
 import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/models/stock_movement.dart';
@@ -6,12 +8,15 @@ import 'package:bhima_collect/providers/exit_movement.dart';
 import 'package:bhima_collect/screens/depot.dart';
 import 'package:bhima_collect/screens/settings.dart';
 import 'package:bhima_collect/services/db.dart';
+import 'package:bhima_collect/utilities/toast_bhima.dart';
 import 'package:date_format/date_format.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bhima_collect/services/connect.dart';
 import 'package:bhima_collect/utilities/util.dart';
+// ignore: depend_on_referenced_packages
 import "package:collection/collection.dart";
 
 class HomePage extends StatefulWidget {
@@ -24,11 +29,14 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   var connexion = Connect();
   var database = BhimaDatabase.open();
+  late StreamSubscription subscription;
   DateTime lastUpdate = DateTime.now();
   String _formattedLastUpdate = '';
   String _selectedDepotText = '';
   bool _isRecentSync = false;
   bool _isSyncing = false;
+  bool _isLoading = false;
+  bool isDeviceConnected = false;
   String _serverUrl = '';
   String _username = '';
   String _password = '';
@@ -71,7 +79,10 @@ class _HomePageState extends State<HomePage> {
     try {
       // init connexion by getting the user token
       await connexion.getToken(_serverUrl, _username, _password);
-    } catch (e) {}
+    } catch (e) {
+      // ignore: use_build_context_synchronously
+      handleError(e.toString(), context);
+    }
   }
 
   Future fetchLots() async {
@@ -116,9 +127,11 @@ class _HomePageState extends State<HomePage> {
       // clean previous depots
       Lot.clean(database);
       // write new entries
-      lots.forEach((lot) async {
-        await Lot.insertLot(database, lot);
-      });
+
+      await Lot.txInsertLot(database, lots);
+      // lots.forEach((lot) async {
+      //   await Lot.insertLot(database, lot);
+      // });
 
       // import into inventory_lot and inventory table
       await InventoryLot.import(database);
@@ -201,7 +214,9 @@ class _HomePageState extends State<HomePage> {
       // fetch fresh data from the server after exits
       await fetchLots();
     } catch (e) {
-      print(e);
+      if (kDebugMode) {
+        print(e);
+      }
     }
   }
 
@@ -215,20 +230,24 @@ class _HomePageState extends State<HomePage> {
         await connexion.post(url, {'lots': value});
       });
     } catch (e) {
-      print(e);
+      if (kDebugMode) {
+        print(e);
+      }
     }
   }
 
   Future syncBtnClicked() async {
     if (_isSyncing) {
+      setState(() {
+        _isLoading = false;
+      });
       return null;
     } else {
       // sync data
+      setState(() {
+        _isLoading = true;
+      });
       try {
-        setState(() {
-          _isSyncing = true;
-        });
-
         // set the connection to the server
         await serverConnection();
 
@@ -242,7 +261,8 @@ class _HomePageState extends State<HomePage> {
           lastUpdate = DateTime.now();
           _formattedLastUpdate = formatDate(
               lastUpdate, [dd, '/', mm, '/', yyyy, '  ', HH, ':', nn]);
-          _isSyncing = false;
+          _isSyncing = true;
+          _isLoading = false;
           _isRecentSync = true;
         });
 
@@ -250,8 +270,10 @@ class _HomePageState extends State<HomePage> {
       } catch (e) {
         setState(() {
           _isSyncing = false;
+          _isLoading = false;
         });
-        print(e);
+        // ignore: use_build_context_synchronously
+        handleError(e.toString(), context);
       }
     }
   }
@@ -261,12 +283,12 @@ class _HomePageState extends State<HomePage> {
     final ButtonStyle btnStyle = ElevatedButton.styleFrom(
       textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
       padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 20),
-      primary: Colors.green[700],
+      backgroundColor: Colors.green[700],
     );
     final ButtonStyle btnRedStyle = ElevatedButton.styleFrom(
       textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
       padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 20),
-      primary: Colors.red[700],
+      backgroundColor: Colors.red[700],
     );
 
     return Scaffold(
@@ -340,9 +362,9 @@ class _HomePageState extends State<HomePage> {
                                   .reset());
                         },
                         style: btnStyle,
-                        child: Row(
+                        child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: const <Widget>[
+                          children: <Widget>[
                             Icon(Icons.add),
                             Text('Réception'),
                           ],
@@ -360,9 +382,9 @@ class _HomePageState extends State<HomePage> {
                                   .reset());
                         },
                         style: btnStyle,
-                        child: Row(
+                        child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: const <Widget>[
+                          children: <Widget>[
                             Icon(Icons.add),
                             Text('Integration de stock'),
                           ],
@@ -376,9 +398,9 @@ class _HomePageState extends State<HomePage> {
                           Navigator.pushNamed(context, '/stock');
                         },
                         style: btnStyle,
-                        child: Row(
+                        child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: const <Widget>[
+                          children: <Widget>[
                             Text('Stock'),
                           ],
                         ),
@@ -394,9 +416,9 @@ class _HomePageState extends State<HomePage> {
                                   .reset());
                         },
                         style: btnStyle,
-                        child: Row(
+                        child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: const <Widget>[
+                          children: <Widget>[
                             Icon(Icons.people_alt_rounded),
                             Padding(
                               padding: EdgeInsets.symmetric(horizontal: 8),
@@ -414,7 +436,7 @@ class _HomePageState extends State<HomePage> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: <Widget>[
-                            _isSyncing
+                            _isLoading
                                 ? const CircularProgressIndicator(
                                     color: Colors.white,
                                     semanticsLabel: 'Chargement...',
@@ -434,9 +456,9 @@ class _HomePageState extends State<HomePage> {
                                   .reset());
                         },
                         style: btnRedStyle,
-                        child: Row(
+                        child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: const <Widget>[
+                          children: <Widget>[
                             Icon(Icons.delete_outline),
                             Text('Perte de stock'),
                           ],
@@ -455,7 +477,7 @@ class _HomePageState extends State<HomePage> {
                                 Text('$_progress %')
                               ],
                             )
-                          : Row(),
+                          : const Row(),
                     ),
                     Padding(
                       padding: const EdgeInsets.all(8.0),
@@ -468,7 +490,7 @@ class _HomePageState extends State<HomePage> {
                                     'Données synchronisées : $_countSynced / $_maxToSync'),
                               ],
                             )
-                          : Row(),
+                          : const Row(),
                     )
                   ],
                 ),

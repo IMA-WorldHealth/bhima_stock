@@ -5,9 +5,9 @@
 import FlutterMacOS
 import Foundation
 
-import connectivity_plus_macos
-import network_info_plus_macos
-import shared_preferences_macos
+import connectivity_plus
+import network_info_plus
+import shared_preferences_foundation
 import sqflite
 
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
