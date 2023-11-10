@@ -67,13 +67,14 @@ class Depot {
 
   // Define a function that insert the array depots into database with transaction
   static Future<void> txInsertLot(dynamic database, List<Depot> depots) async {
-    await database.transaction((txn) async {
-      var batch = txn.batch();
+    final db = await database;
+    await db.transaction((txn) async {
+      final batch = txn.batch();
       for (var depot in depots) {
         batch.insert('depot', depot.toMap(),
             conflictAlgorithm: ConflictAlgorithm.ignore);
       }
-      await batch.commit();
+      await batch.commit(noResult: true);
     });
   }
 

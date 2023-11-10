@@ -28,12 +28,8 @@ class _SettingsPageState extends State<SettingsPage> {
   var txtUsername = TextEditingController();
   var txtPassword = TextEditingController();
   // late StreamSubscription subscription;
-
+  // bool _isConnectionSucceed = false;
   bool _isButtonDisabled = false;
-  bool _isConnectionSucceed = false;
-  bool _isSyncFailed = false;
-  bool _isDepotSynced = false;
-  bool _isLotsImported = false;
   bool isDeviceConnected = false;
   String _serverUrl = '';
   String _username = '';
@@ -46,16 +42,10 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future checkServerConnection() async {
-    _isConnectionSucceed = false;
     try {
       // init connexion by getting the user token
       await connexion.getToken(_serverUrl, _username, _password);
-      // update the connection status message
-      setState(() {
-        _isConnectionSucceed = true;
-      });
     } catch (e) {
-      _isConnectionSucceed = false;
       throw Exception(e);
     }
   }
@@ -103,27 +93,15 @@ class _SettingsPageState extends State<SettingsPage> {
       // clean previous lots
       Lot.clean(database);
       // write new entries
-      // ignore: avoid_function_literals_in_foreach_calls
-      lots.forEach((lot) async {
-        await Lot.insertLot(database, lot);
-      });
-      // await Lot.txInsertLot(database, lots);
+      await Lot.txInsertLot(database, lots);
       // import into inventory_lot and inventory table
       await InventoryLot.import(database);
-
-      setState(() {
-        _isLotsImported = true;
-      });
     } catch (e) {
-      setState(() {
-        _isLotsImported = false;
-      });
       throw Exception(e);
     }
   }
 
   Future syncDepots() async {
-    _isDepotSynced = false;
     try {
       // get all depots
       List depots = await connexion.api('/depots');
@@ -143,33 +121,18 @@ class _SettingsPageState extends State<SettingsPage> {
       // clean previous data
       Depot.clean(database);
       // write new fresh depots entries
-      // ignore: avoid_function_literals_in_foreach_calls
-      userDepotList.forEach((depot) async {
-        await Depot.insertDepot(database, depot);
-      });
-      // await Depot.txInsertLot(database, userDepotList);
-      // userDepotList.forEach((depot) async {
-      //   await Depot.insertDepot(database, depot);
-      // });
-      setState(() {
-        _isDepotSynced = true;
-      });
+      // insert new with transaction
+      await Depot.txInsertLot(database, userDepotList);
     } catch (e) {
       if (kDebugMode) {
         print('ERROR SYNC DEpot :  $e');
       }
-      setState(() {
-        _isDepotSynced = false;
-      });
       throw Exception(e);
     }
   }
 
   Future submit() async {
     if (_formKey.currentState!.validate()) {
-      // if (!isDeviceConnected) {
-      //   return handleError("Vous n'etes pas connecté à un réseau");
-      // }
       try {
         setState(() {
           _isButtonDisabled = true;
@@ -196,17 +159,11 @@ class _SettingsPageState extends State<SettingsPage> {
         setState(() {
           _isButtonDisabled = false;
         });
-        setState(() {
-          _isSyncFailed = true;
-        });
+        if (kDebugMode) print('ERROR SERVER : $e');
         // ignore: use_build_context_synchronously
-        alertError(context, 'Echec de synchronisation');
+        alertError(context, 'Echec de synchronisation \n ${e.toString()}');
       }
     }
-  }
-
-  displayNotification(String message) {
-    handleError(message, context);
   }
 
   //Loading settings values on start
@@ -336,7 +293,20 @@ class _SettingsPageState extends State<SettingsPage> {
                           await submit();
                         },
                   child: _isButtonDisabled
-                      ? const Text('En cours de traitement...')
+                      ? const Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            Text('En cours de traitement...'),
+                            SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.blue,
+                                  strokeWidth: 4.0,
+                                  strokeCap: StrokeCap.round,
+                                )),
+                          ],
+                        )
                       : const Text('Soumettre'),
                 ),
               ),

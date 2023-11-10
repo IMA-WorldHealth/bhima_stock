@@ -2,7 +2,7 @@
     package="com.imaworldhealth.bhima_stock">
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="BHIMA Stock"
+        android:label="Bhima Stock"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
         <activity

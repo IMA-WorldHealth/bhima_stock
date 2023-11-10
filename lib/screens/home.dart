@@ -80,8 +80,7 @@ class _HomePageState extends State<HomePage> {
       // init connexion by getting the user token
       await connexion.getToken(_serverUrl, _username, _password);
     } catch (e) {
-      // ignore: use_build_context_synchronously
-      handleError(e.toString(), context);
+      throw Exception(e);
     }
   }
 
@@ -129,9 +128,6 @@ class _HomePageState extends State<HomePage> {
       // write new entries
 
       await Lot.txInsertLot(database, lots);
-      // lots.forEach((lot) async {
-      //   await Lot.insertLot(database, lot);
-      // });
 
       // import into inventory_lot and inventory table
       await InventoryLot.import(database);
@@ -140,8 +136,10 @@ class _HomePageState extends State<HomePage> {
         _importedRecords = lots.length;
       });
     } catch (e) {
-      print(
-          'Error during fetch of lots : $e, $_serverUrl, $_username, $_password');
+      if (kDebugMode) {
+        print('Error during fetch of lots : $e');
+      }
+      throw Exception(e);
     }
   }
 
@@ -174,9 +172,11 @@ class _HomePageState extends State<HomePage> {
       var exitGrouped =
           exitMovement.groupListsBy((element) => element.movementUuid);
 
-      _maxToSync = entryGrouped.length + exitGrouped.length;
-      _countSynced = 0;
-      _progress = _maxToSync != 0 ? 0 : 100;
+      setState(() {
+        _maxToSync = entryGrouped.length + exitGrouped.length;
+        _countSynced = 0;
+        _progress = _maxToSync != 0 ? 0 : 100;
+      });
 
       // NOTE: Sync entries first before exits
 
@@ -193,9 +193,6 @@ class _HomePageState extends State<HomePage> {
           });
         }
       });
-
-      // fetch fresh data from the server after entries
-      await fetchLots();
 
       exitGrouped.forEach((key, value) async {
         var result =
@@ -217,6 +214,7 @@ class _HomePageState extends State<HomePage> {
       if (kDebugMode) {
         print(e);
       }
+      throw Exception(e);
     }
   }
 
@@ -233,6 +231,7 @@ class _HomePageState extends State<HomePage> {
       if (kDebugMode) {
         print(e);
       }
+      throw Exception(e);
     }
   }
 
@@ -273,7 +272,7 @@ class _HomePageState extends State<HomePage> {
           _isLoading = false;
         });
         // ignore: use_build_context_synchronously
-        handleError(e.toString(), context);
+        alertError(context, e.toString());
       }
     }
   }
