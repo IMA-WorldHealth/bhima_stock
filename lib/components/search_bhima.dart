@@ -6,10 +6,12 @@ class SearchBhima extends StatelessWidget {
       {super.key,
       required this.onSearch,
       this.name,
+      this.hintText = 'Recherche ...',
       required this.searchController});
 
   final void Function(String val)? onSearch;
   final String? name;
+  final String? hintText;
   final TextEditingController? searchController;
 
   @override
@@ -20,7 +22,7 @@ class SearchBhima extends StatelessWidget {
         controller: searchController,
         onChanged: onSearch,
         decoration: InputDecoration(
-            hintText: 'Recherche un dépot ...',
+            hintText: hintText,
             suffixIcon: IconButton(
               icon: const Icon(
                 Icons.clear,

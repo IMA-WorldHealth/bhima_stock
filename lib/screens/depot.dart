@@ -17,9 +17,8 @@ class _ConfigureDepotPageState extends State<ConfigureDepotPage> {
   String _selectedDepotUuid = '';
   String _selectedDepotText = '';
   final TextEditingController _searchCtrller = TextEditingController();
+  String _textDepot = '';
   Future<List<dynamic>>? _depotFuture;
-  List<Depot> _depots = [];
-  List<Depot> _filterDepot = [];
 
   @override
   void initState() {
@@ -36,9 +35,7 @@ class _ConfigureDepotPageState extends State<ConfigureDepotPage> {
 
   _onSeach(String value) {
     setState(() {
-      _filterDepot = _depots
-          .where((element) => element.text.toLowerCase().contains(value))
-          .toList();
+      _textDepot = value;
     });
   }
 
@@ -67,12 +64,11 @@ class _ConfigureDepotPageState extends State<ConfigureDepotPage> {
   }
 
   Future<List<Depot>> _loadDepots() async {
-    var d = await Depot.depots(database);
-    setState(() {
-      _depots = d;
-      _filterDepot = d;
-    });
     return Depot.depots(database);
+  }
+
+  Future<List<Depot>> _filterDepots(String text) async {
+    return Depot.depotFilter(database, text);
   }
 
   @override
@@ -92,31 +88,34 @@ class _ConfigureDepotPageState extends State<ConfigureDepotPage> {
         ),
       ),
       body: FutureBuilder<List>(
-        future: _depotFuture,
+        future: _searchCtrller.text.isEmpty
+            ? _depotFuture
+            : _filterDepots(_textDepot),
         builder: (context, snapshot) {
           final screenWidth = MediaQuery.of(context).size.width;
           final screenHeight = MediaQuery.of(context).size.height;
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           } else {
-            List values = _filterDepot;
+            List values = (snapshot.data ?? []);
             return Padding(
               padding: const EdgeInsets.all(0.0),
               child: Column(children: <Widget>[
                 CardBhima(
                   width: screenWidth,
-                  height: screenHeight / 13,
+                  height: screenHeight / 13.5,
                   borderOnForeground: false,
                   elevation: 2,
                   clipBehavior: Clip.hardEdge,
                   child: SearchBhima(
                     onSearch: _onSeach,
                     searchController: _searchCtrller,
+                    hintText: 'Recherche un dépot ...',
                   ),
                 ),
                 Expanded(
                     child: ListView.builder(
-                        itemCount: _filterDepot.length,
+                        itemCount: values.length,
                         itemBuilder: ((context, index) {
                           return Column(children: <Widget>[
                             Padding(

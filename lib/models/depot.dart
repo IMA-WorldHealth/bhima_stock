@@ -49,6 +49,23 @@ class Depot {
     });
   }
 
+  // A method to the filter depot list
+  static Future<List<Depot>> depotFilter(dynamic database, String text) async {
+    final db = await database;
+
+    //Query
+    final List<Map<String, dynamic>> maps =
+        await db.query('depot', where: 'text LIKE ?', whereArgs: ['%$text%']);
+
+    // Convert the List<Map<String, dynamic> into a List<Depot>.
+    return List.generate(maps.length, (i) {
+      return Depot(
+        uuid: maps[i]['uuid'],
+        text: maps[i]['text'],
+      );
+    });
+  }
+
   // Define a function that inserts depots into the database
   static Future<void> insertDepot(dynamic database, Depot depot) async {
     // Get a reference to the database.

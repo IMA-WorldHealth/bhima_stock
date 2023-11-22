@@ -206,33 +206,6 @@ class StockMovement {
     final db = await database;
 
     // Get data from local movements and latest online data received
-    // String query = '''
-    //   SELECT z.depot_uuid, z.inventory_text AS text, z.lot_label AS label,
-    //   SUM(z.quantity) quantity,
-    //   z.code, z.unit_type, z.isExit, z.inventory_uuid, z.lot_uuid,
-    //   z.expiration_date, z.unit_cost
-    //   FROM (
-    //     SELECT
-    //       i.uuid AS inventory_uuid, l.uuid AS lot_uuid,
-    //       m.depotUuid AS depot_uuid, i.label AS inventory_text, l.label AS lot_label,
-    //       SUM(IIF(m.isExit = 0, 1 * m.quantity, -1 * m.quantity)) quantity,
-    //       m.isExit, i.code, i.unit AS unit_type, l.expiration_date, l.unit_cost
-    //     FROM stock_movement m
-    //     JOIN inventory_lot l ON l.uuid = m.lotUuid
-    //     JOIN inventory i ON i.uuid = l.inventory_uuid
-    //     WHERE m.isSync IS null OR m.isSync = 0
-    //     GROUP BY m.depotUuid, l.inventory_uuid, l.uuid
-    //     UNION ALL
-    //     SELECT
-    //       lot.inventory_uuid AS inventory_uuid, lot.uuid AS lot_uuid,
-    //       lot.depot_uuid AS depot_uuid, lot.text AS inventory_text, lot.label AS lot_label, lot.quantity,
-    //       0 AS isExit, lot.code, lot.unit_type AS unit_type, lot.expiration_date, lot.unit_cost
-    //     FROM lot
-    //     GROUP BY lot.depot_uuid, lot.inventory_uuid, lot.uuid
-    //   ) z
-    //   GROUP BY z.depot_uuid, z.inventory_uuid, z.lot_uuid
-    //   ORDER BY z.inventory_text, z.lot_label;
-    // ''';
     String query = '''
       SELECT z.depot_uuid, z.inventory_text AS text, z.lot_label AS label,
       SUM(z.quantity) quantity,
@@ -261,6 +234,88 @@ class StockMovement {
       ORDER BY z.inventory_text, z.lot_label;
     ''';
     final List<Map<String, dynamic>> maps = await db.rawQuery(query);
+
+    // Convert the List<Map<String, dynamic> into a List<StockMovement>.
+    return maps;
+  }
+
+  static Future<List> stockQuantityDepot(
+      dynamic database, String depotUuid) async {
+    // Get a reference to the database.
+    final db = await database;
+
+    // Get data from local movements and latest online data received
+    String query = '''
+      SELECT z.depot_uuid, z.inventory_text AS text, z.lot_label AS label,
+      SUM(z.quantity) quantity,
+      z.code, z.unit_type, z.isExit, z.inventory_uuid, z.lot_uuid,
+      z.expiration_date, z.unit_cost
+      FROM (
+        SELECT
+          i.uuid AS inventory_uuid, l.uuid AS lot_uuid,
+          m.depotUuid AS depot_uuid, i.label AS inventory_text, l.label AS lot_label,
+          SUM(CASE WHEN m.isExit = 0 THEN 1 * m.quantity ELSE -1 * m.quantity END) quantity,
+          m.isExit, i.code, i.unit AS unit_type, l.expiration_date, l.unit_cost
+        FROM stock_movement m
+        JOIN inventory_lot l ON l.uuid = m.lotUuid
+        JOIN inventory i ON i.uuid = l.inventory_uuid
+        WHERE m.isSync IS null OR m.isSync = 0
+        GROUP BY m.depotUuid, l.inventory_uuid, l.uuid
+        UNION ALL
+        SELECT
+          lot.inventory_uuid AS inventory_uuid, lot.uuid AS lot_uuid,
+          lot.depot_uuid AS depot_uuid, lot.text AS inventory_text, lot.label AS lot_label, lot.quantity,
+          0 AS isExit, lot.code, lot.unit_type AS unit_type, lot.expiration_date, lot.unit_cost
+        FROM lot
+        GROUP BY lot.depot_uuid, lot.inventory_uuid, lot.uuid
+      ) z 
+      WHERE z.depot_uuid = ?
+      GROUP BY z.depot_uuid, z.inventory_uuid, z.lot_uuid
+      ORDER BY z.inventory_text, z.lot_label;
+    ''';
+    final List<Map<String, dynamic>> maps =
+        await db.rawQuery(query, [depotUuid]);
+
+    // Convert the List<Map<String, dynamic> into a List<StockMovement>.
+    return maps;
+  }
+
+  static Future<List> stockQuantityDepotFilter(
+      dynamic database, String depotUuid, String text) async {
+    // Get a reference to the database.
+    final db = await database;
+
+    // Get data from local movements and latest online data received
+    String query = '''
+      SELECT z.depot_uuid, z.inventory_text AS text, z.lot_label AS label,
+      SUM(z.quantity) quantity,
+      z.code, z.unit_type, z.isExit, z.inventory_uuid, z.lot_uuid,
+      z.expiration_date, z.unit_cost
+      FROM (
+        SELECT
+          i.uuid AS inventory_uuid, l.uuid AS lot_uuid,
+          m.depotUuid AS depot_uuid, i.label AS inventory_text, l.label AS lot_label,
+          SUM(CASE WHEN m.isExit = 0 THEN 1 * m.quantity ELSE -1 * m.quantity END) quantity,
+          m.isExit, i.code, i.unit AS unit_type, l.expiration_date, l.unit_cost
+        FROM stock_movement m
+        JOIN inventory_lot l ON l.uuid = m.lotUuid
+        JOIN inventory i ON i.uuid = l.inventory_uuid
+        WHERE m.isSync IS null OR m.isSync = 0
+        GROUP BY m.depotUuid, l.inventory_uuid, l.uuid
+        UNION ALL
+        SELECT
+          lot.inventory_uuid AS inventory_uuid, lot.uuid AS lot_uuid,
+          lot.depot_uuid AS depot_uuid, lot.text AS inventory_text, lot.label AS lot_label, lot.quantity,
+          0 AS isExit, lot.code, lot.unit_type AS unit_type, lot.expiration_date, lot.unit_cost
+        FROM lot
+        GROUP BY lot.depot_uuid, lot.inventory_uuid, lot.uuid
+      ) z 
+      WHERE z.depot_uuid = ? OR z.inventory_text LIKE ? OR z.lot_label LIKE ? OR z.code LIKE ?
+      GROUP BY z.depot_uuid, z.inventory_uuid, z.lot_uuid
+      ORDER BY z.inventory_text, z.lot_label;
+    ''';
+    final List<Map<String, dynamic>> maps =
+        await db.rawQuery(query, [depotUuid, '%$text%', '%$text%', '%$text%']);
 
     // Convert the List<Map<String, dynamic> into a List<StockMovement>.
     return maps;
