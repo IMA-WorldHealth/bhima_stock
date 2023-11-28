@@ -1,4 +1,3 @@
-import 'package:bhima_collect/models/inventory_lot.dart';
 import 'package:bhima_collect/utilities/util.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
@@ -280,6 +279,7 @@ class StockMovement {
     return maps;
   }
 
+  // Filter the stock of a given depot by lot and inventory
   static Future<List> stockQuantityDepotFilter(
       dynamic database, String depotUuid, String text) async {
     // Get a reference to the database.
@@ -340,6 +340,20 @@ class StockMovement {
       movement.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  // Define a function that insert the array movement into database with transaction
+  static Future<dynamic> txInsertMovement(
+      dynamic database, List<StockMovement> movements) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      final batch = txn.batch();
+      for (var movement in movements) {
+        batch.insert('stock_movement', movement.toMap(),
+            conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+      await batch.commit(noResult: true);
+    });
   }
 
   static Future<void> updateMovement(

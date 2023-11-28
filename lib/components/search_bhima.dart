@@ -2,7 +2,7 @@ import 'dart:core';
 import 'package:flutter/material.dart';
 
 class SearchBhima extends StatelessWidget {
-  SearchBhima(
+  const SearchBhima(
       {super.key,
       required this.onSearch,
       this.name,

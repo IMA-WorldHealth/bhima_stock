@@ -31,6 +31,7 @@ dependencies:
   date_format: ^2.0.6
   flutter_typeahead: ^4.0.0
   darq: ^2.0.0
+  animated_splash_screen: ^1.3.0
   # fluttertoast: ^8.2.2
   flutter_toastify: ^1.0.4
   rflutter_alert: ^2.0.7

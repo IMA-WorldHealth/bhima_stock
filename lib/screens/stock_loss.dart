@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 import 'package:darq/darq.dart';
 
 class StockLossPage extends StatefulWidget {
-  const StockLossPage({Key? key}) : super(key: key);
+  const StockLossPage({super.key});
 
   @override
   State<StockLossPage> createState() => _StockLossPageState();
@@ -21,6 +21,7 @@ class _StockLossPageState extends State<StockLossPage> {
   var database = BhimaDatabase.open();
   final _uuid = const Uuid();
   final _formKey = GlobalKey<FormState>();
+  // ignore: non_constant_identifier_names
   final _STOCK_TO_LOSS = 11;
   final PageController _controller = PageController(
     initialPage: 0,
@@ -33,7 +34,7 @@ class _StockLossPageState extends State<StockLossPage> {
   String _selectedDepotUuid = '';
   String _selectedDepotText = '';
   int? _userId;
-  bool _savingSucceed = false;
+  // bool _savingSucceed = false;
 
   DateTime _selectedDate = DateTime.now();
   final _customDateFormat = [dd, ' ', MM, ' ', yyyy];
@@ -178,10 +179,10 @@ class _StockLossPageState extends State<StockLossPage> {
 
   Widget inventoryTypeaheadField(int index) {
     final TextEditingController typeAheadController = TextEditingController();
-    Future<List> _loadInventories(String pattern) async {
-      List currentInventories = await StockMovement.stockQuantity(database);
+    Future<List> loadInventories(String pattern) async {
+      List currentInventories =
+          await StockMovement.stockQuantityDepot(database, _selectedDepotUuid);
       return currentInventories
-          .where((element) => element['depot_uuid'] == _selectedDepotUuid)
           .distinct((element) => element['inventory_uuid'])
           .where((element) =>
               element['text']!.toLowerCase().contains(pattern.toLowerCase()) ==
@@ -198,7 +199,7 @@ class _StockLossPageState extends State<StockLossPage> {
         decoration: const InputDecoration(labelText: 'Inventaire'),
       ),
       suggestionsCallback: (pattern) async {
-        return _loadInventories(pattern);
+        return loadInventories(pattern);
       },
       itemBuilder: (context, dynamic suggestion) {
         return Column(
@@ -227,14 +228,14 @@ class _StockLossPageState extends State<StockLossPage> {
     final TextEditingController lotTypeAheadController =
         TextEditingController();
 
-    Future<List> _loadInventoryLots(String pattern) async {
+    Future<List> loadInventoryLots(String pattern) async {
       var inventoryUuid = Provider.of<ExitMovement>(context, listen: false)
           .getLotValue(index, 'inventory_uuid');
 
-      List currentLots = await StockMovement.stockQuantity(database);
+      List currentLots =
+          await StockMovement.stockQuantityDepot(database, _selectedDepotUuid);
       return currentLots
           .where((element) =>
-              element['depot_uuid'] == _selectedDepotUuid &&
               element['inventory_uuid'] == inventoryUuid &&
               element['quantity'] > 0)
           .where((element) =>
@@ -250,7 +251,7 @@ class _StockLossPageState extends State<StockLossPage> {
         decoration: const InputDecoration(labelText: 'Lot'),
       ),
       suggestionsCallback: (pattern) async {
-        return await _loadInventoryLots(pattern);
+        return await loadInventoryLots(pattern);
       },
       itemBuilder: (context, dynamic suggestion) {
         String exp = suggestion['expiration_date'] == null ||
@@ -286,7 +287,7 @@ class _StockLossPageState extends State<StockLossPage> {
   Widget stockExitStartPage() {
     String formattedSelectedDate = formatDate(_selectedDate, _customDateFormat);
 
-    Future _selectDate(BuildContext context) async {
+    Future selectDate(BuildContext context) async {
       final DateTime? picked = await showDatePicker(
         context: context,
         initialDate: _selectedDate, // Refer step 1
@@ -304,7 +305,7 @@ class _StockLossPageState extends State<StockLossPage> {
     return Column(
       children: <Widget>[
         ElevatedButton.icon(
-          onPressed: () => _selectDate(context).then(
+          onPressed: () => selectDate(context).then(
             (_) {
               Provider.of<ExitMovement>(context, listen: false).setDate =
                   _selectedDate;
@@ -394,7 +395,9 @@ class _StockLossPageState extends State<StockLossPage> {
 
     Future batchInsertMovements(var lots) async {
       var movementUuid = _uuid.v4();
-      return lots.forEach((element) async {
+      List<StockMovement> movements = [];
+
+      lots.forEach((element) async {
         if (element != null && element['lot_uuid'] != null) {
           var movement = StockMovement(
             uuid: _uuid.v4(),
@@ -413,9 +416,11 @@ class _StockLossPageState extends State<StockLossPage> {
             quantity: int.parse(element['quantity'] ?? 0),
             unitCost: element['unit_cost'].toDouble(),
           );
-          await StockMovement.insertMovement(database, movement);
+          movements.add(movement);
         }
       });
+
+      await StockMovement.txInsertMovement(database, movements);
     }
 
     Future<dynamic> save() {
@@ -432,11 +437,7 @@ class _StockLossPageState extends State<StockLossPage> {
         Provider.of<ExitMovement>(context, listen: false).reset();
 
         // back to home
-        Navigator.pushNamed(context, '/');
-
-        setState(() {
-          _savingSucceed = true;
-        });
+        Navigator.pushNamed(context, '/home');
 
         return true;
       });
@@ -470,7 +471,7 @@ class _StockLossPageState extends State<StockLossPage> {
                   trailing: Chip(label: Text(value['quantity'] ?? '')),
                 );
               } else {
-                return Row();
+                return const Row();
               }
             },
           )),

@@ -2,7 +2,7 @@ import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/models/stock_movement.dart';
 import 'package:bhima_collect/providers/entry_movement.dart';
 import 'package:bhima_collect/services/db.dart';
-// import 'package:bhima_collect/utilities/util.dart';
+import 'package:bhima_collect/utilities/toast_bhima.dart';
 import 'package:date_format/date_format.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,7 +12,7 @@ import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:uuid/uuid.dart';
 
 class StockEntryPage extends StatefulWidget {
-  StockEntryPage({Key? key}) : super(key: key);
+  const StockEntryPage({super.key});
 
   @override
   State<StockEntryPage> createState() => _StockEntryPageState();
@@ -22,6 +22,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
   var database = BhimaDatabase.open();
   final _uuid = const Uuid();
   final _formKey = GlobalKey<FormState>();
+  // ignore: non_constant_identifier_names
   final _STOCK_FROM_OTHER_DEPOT = 2;
   final PageController _controller = PageController(
     initialPage: 0,
@@ -34,7 +35,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
   String _selectedDepotUuid = '';
   String _selectedDepotText = '';
   int? _userId;
-  bool _savingSucceed = false;
+  // bool _savingSucceed = false;
 
   DateTime _selectedDate = DateTime.now();
   final _customDateFormat = [dd, ' ', MM, ' ', yyyy];
@@ -181,7 +182,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
 
   Widget inventoryTypeaheadField(int index) {
     final TextEditingController typeAheadController = TextEditingController();
-    Future<List<Lot>> _loadInventories(String pattern) async {
+    Future<List<Lot>> loadInventories(String pattern) async {
       List<Lot> allLots = await Lot.inventories(database, _selectedDepotUuid);
       return allLots
           .where((element) =>
@@ -197,7 +198,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
         decoration: const InputDecoration(labelText: 'Inventaire'),
       ),
       suggestionsCallback: (pattern) async {
-        return _loadInventories(pattern);
+        return loadInventories(pattern);
       },
       itemBuilder: (context, Lot suggestion) {
         return Column(
@@ -226,8 +227,8 @@ class _StockEntryPageState extends State<StockEntryPage> {
     final TextEditingController lotTypeAheadController =
         TextEditingController();
 
-    Future<List<Lot>> _loadInventoryLots(String pattern) async {
-      var inventoryUuid = Provider.of<EntryMovement>(context)
+    Future<List<Lot>> loadInventoryLots(String pattern) async {
+      var inventoryUuid = Provider.of<EntryMovement>(context, listen: false)
           .getLotValue(index, 'inventory_uuid');
       List<Lot> allLots =
           await Lot.inventoryLots(database, _selectedDepotUuid, inventoryUuid);
@@ -243,7 +244,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
         decoration: const InputDecoration(labelText: 'Lot'),
       ),
       suggestionsCallback: (pattern) async {
-        return await _loadInventoryLots(pattern);
+        return await loadInventoryLots(pattern);
       },
       itemBuilder: (context, Lot suggestion) {
         return Column(
@@ -275,7 +276,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
   Widget stockEntryStartPage() {
     String formattedSelectedDate = formatDate(_selectedDate, _customDateFormat);
 
-    Future _selectDate(BuildContext context) async {
+    Future selectDate(BuildContext context) async {
       final DateTime? picked = await showDatePicker(
         context: context,
         initialDate: _selectedDate, // Refer step 1
@@ -293,7 +294,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
     return Column(
       children: <Widget>[
         ElevatedButton.icon(
-            onPressed: () => _selectDate(context).then(
+            onPressed: () => selectDate(context).then(
                   (_) {
                     Provider.of<EntryMovement>(context, listen: false).setDate =
                         _selectedDate;
@@ -381,7 +382,9 @@ class _StockEntryPageState extends State<StockEntryPage> {
 
     Future batchInsertMovements(var lots) async {
       var movementUuid = _uuid.v4();
-      return lots.forEach((element) async {
+      List<StockMovement> movements = [];
+
+      lots.forEach((element) {
         if (element != null && element['lot_uuid'] != null) {
           var movement = StockMovement(
             uuid: _uuid.v4(),
@@ -400,12 +403,25 @@ class _StockEntryPageState extends State<StockEntryPage> {
             quantity: int.parse(element['quantity']),
             unitCost: element['unit_cost'].toDouble(),
           );
-          await StockMovement.insertMovement(database, movement);
+          movements.add(movement);
         }
       });
+
+      // insert with tx
+      await StockMovement.txInsertMovement(database, movements);
     }
 
-    Future<dynamic> save() {
+    Object save() {
+      var checkField = lots.every((element) =>
+          (element['inventory_uuid'] == null ||
+              element['inventory_uuid'] == '') &&
+          (element['lot_uuid'] == null || element['lot_uuid'] == '') &&
+          (element['quantity'] == null || element['quantity'] == 0));
+
+      if (checkField) {
+        alertError(context, 'Veuillez completer vos champs');
+        return 0;
+      }
       return batchInsertMovements(lots).then((value) {
         var snackBar = const SnackBar(
           content: Text('Entrée de stock réussie ✅'),
@@ -419,11 +435,7 @@ class _StockEntryPageState extends State<StockEntryPage> {
         Provider.of<EntryMovement>(context, listen: false).reset();
 
         // back to home
-        Navigator.pushNamed(context, '/');
-
-        setState(() {
-          _savingSucceed = true;
-        });
+        Navigator.pushNamed(context, '/home');
 
         return true;
       });
@@ -451,12 +463,12 @@ class _StockEntryPageState extends State<StockEntryPage> {
               if (lots.isNotEmpty && lots[index] != null) {
                 var value = lots[index];
                 return ListTile(
-                  title: Text(value['inventory_text']),
-                  subtitle: Text(value['lot_label']),
-                  trailing: Chip(label: Text(value['quantity'])),
+                  title: Text(value['inventory_text'] ?? '-'),
+                  subtitle: Text(value['lot_label'] ?? '-'),
+                  trailing: Chip(label: Text(value['quantity'] ?? '0')),
                 );
               } else {
-                return Row();
+                return const Row();
               }
             },
           )),

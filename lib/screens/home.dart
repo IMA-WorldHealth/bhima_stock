@@ -10,7 +10,6 @@ import 'package:bhima_collect/screens/settings.dart';
 import 'package:bhima_collect/services/db.dart';
 import 'package:bhima_collect/utilities/toast_bhima.dart';
 import 'package:date_format/date_format.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -20,7 +19,7 @@ import 'package:bhima_collect/utilities/util.dart';
 import "package:collection/collection.dart";
 
 class HomePage extends StatefulWidget {
-  const HomePage({Key? key}) : super(key: key);
+  const HomePage({super.key});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -40,8 +39,8 @@ class _HomePageState extends State<HomePage> {
   String _serverUrl = '';
   String _username = '';
   String _password = '';
-  int _importedRecords = 0;
-  num _progress = 0;
+  String _token = '';
+  double _progress = 0.0;
   int _countSynced = 0;
   int _maxToSync = 0;
 
@@ -60,7 +59,7 @@ class _HomePageState extends State<HomePage> {
       _password = (prefs.getString('password') ?? '');
       _selectedDepotText = (prefs.getString('selected_depot_text') ?? '');
       _formattedLastUpdate = (prefs.getString('last_sync_date') ?? '');
-      _importedRecords = (prefs.getInt('last_sync_items') ?? 0);
+      // _importedRecords = (prefs.getInt('last_sync_items') ?? 0);
       _isRecentSync = (prefs.getInt('last_sync') ?? 0) == 0 ? false : true;
     });
   }
@@ -78,7 +77,10 @@ class _HomePageState extends State<HomePage> {
   Future serverConnection() async {
     try {
       // init connexion by getting the user token
-      await connexion.getToken(_serverUrl, _username, _password);
+      var token = await connexion.getToken(_serverUrl, _username, _password);
+      setState(() {
+        _token = token;
+      });
     } catch (e) {
       throw Exception(e);
     }
@@ -90,8 +92,10 @@ class _HomePageState extends State<HomePage> {
        * Include empty lots for having lots which are sent by not yet received
        */
       const lotDataUrl = '/stock/lots/depots?includeEmptyLot=1';
-      List lotsRaw = await connexion.api(lotDataUrl);
-
+      List lotsRaw = await connexion.api(lotDataUrl, _token);
+      setState(() {
+        _progress += 0.1;
+      });
       List<Lot> lots = lotsRaw.map((lot) {
         return Lot(
           uuid: lot['uuid'],
@@ -125,26 +129,27 @@ class _HomePageState extends State<HomePage> {
       var database = BhimaDatabase.open();
       // clean previous depots
       Lot.clean(database);
+
       // write new entries
-
       await Lot.txInsertLot(database, lots);
-
+      setState(() {
+        _progress += 0.1;
+      });
       // import into inventory_lot and inventory table
       await InventoryLot.import(database);
-
       setState(() {
-        _importedRecords = lots.length;
+        _progress += 0.1;
       });
     } catch (e) {
-      if (kDebugMode) {
-        print('Error during fetch of lots : $e');
-      }
       throw Exception(e);
     }
   }
 
   Future syncStockMovements() async {
     try {
+      setState((() {
+        _progress += 0.1;
+      }));
       const url = '/stock/lots/movements';
       List<StockMovement> movements =
           await StockMovement.stockMovements(database);
@@ -175,45 +180,45 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         _maxToSync = entryGrouped.length + exitGrouped.length;
         _countSynced = 0;
-        _progress = _maxToSync != 0 ? 0 : 100;
+        _progress += 0.1;
       });
 
       // NOTE: Sync entries first before exits
 
       entryGrouped.forEach((key, value) async {
-        var result =
-            await connexion.post(url, {'lots': value, 'sync_mobile': 1});
+        var result = await connexion
+            .post(url, _token, {'lots': value, 'sync_mobile': 1});
 
         if (key != null && result != null && result['uuids'] != null) {
           // update the sync status for valid lots of the movements
           await StockMovement.updateSyncStatus(database, key, result['uuids']);
           setState(() {
             _countSynced++;
-            _progress = ((_countSynced / _maxToSync) * 100).round();
+            _progress += 0.1;
           });
         }
       });
 
       exitGrouped.forEach((key, value) async {
-        var result =
-            await connexion.post(url, {'lots': value, 'sync_mobile': 1});
+        var result = await connexion
+            .post(url, _token, {'lots': value, 'sync_mobile': 1});
 
         if (key != null && result != null && result['uuids'] != null) {
           // update the sync status for valid lots of the movements
           await StockMovement.updateSyncStatus(database, key, result['uuids']);
           setState(() {
             _countSynced++;
-            _progress = ((_countSynced / _maxToSync) * 100).round();
+            _progress += 0.1;
           });
         }
       });
 
       // fetch fresh data from the server after exits
       await fetchLots();
+      setState(() {
+        _progress += 0.1;
+      });
     } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
       throw Exception(e);
     }
   }
@@ -225,12 +230,12 @@ class _HomePageState extends State<HomePage> {
       List lots = await StockMovement.getLocalLots(database);
       var grouped = lots.groupListsBy((element) => element['movementUuid']);
       grouped.forEach((key, value) async {
-        await connexion.post(url, {'lots': value});
+        await connexion.post(url, _token, {'lots': value});
+      });
+      setState(() {
+        _progress += 0.1;
       });
     } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
       throw Exception(e);
     }
   }
@@ -249,7 +254,9 @@ class _HomePageState extends State<HomePage> {
       try {
         // set the connection to the server
         await serverConnection();
-
+        setState(() {
+          _progress += 0.1;
+        });
         // send local lots
         await syncLots();
 
@@ -263,13 +270,17 @@ class _HomePageState extends State<HomePage> {
           _isSyncing = true;
           _isLoading = false;
           _isRecentSync = true;
+          _progress = 0.0;
         });
 
         await _saveSyncInfo(_formattedLastUpdate, _countSynced, _maxToSync);
+        // ignore: use_build_context_synchronously
+        alertSuccess(context, 'Synchronisation des données réussie');
       } catch (e) {
         setState(() {
           _isSyncing = false;
           _isLoading = false;
+          _progress = 0.0;
         });
         // ignore: use_build_context_synchronously
         alertError(context, e.toString());
@@ -430,7 +441,7 @@ class _HomePageState extends State<HomePage> {
                     Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: ElevatedButton(
-                        onPressed: syncBtnClicked,
+                        onPressed: _isLoading ? null : syncBtnClicked,
                         style: btnStyle,
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -468,12 +479,16 @@ class _HomePageState extends State<HomePage> {
                       padding: const EdgeInsets.all(8.0),
                       child: _progress > 0
                           ? Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: <Widget>[
                                 LinearProgressIndicator(
-                                  value: _progress.toDouble(),
-                                  semanticsLabel: '$_progress %',
+                                  backgroundColor: Colors.blue.shade50,
+                                  valueColor:
+                                      const AlwaysStoppedAnimation<Color>(
+                                          Colors.blue),
+                                  value: _progress,
                                 ),
-                                Text('$_progress %')
+                                Text('${(_progress * 100).round()}%')
                               ],
                             )
                           : const Row(),

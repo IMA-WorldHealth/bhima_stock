@@ -40,6 +40,8 @@ class Connect {
       user = body['user'];
       // save the user id
       _saveUser(user['id']);
+    } else if (response.statusCode == 401) {
+      throw 'Bad username or password';
     } else {
       throw 'Unable to get token';
     }
@@ -48,24 +50,33 @@ class Connect {
   }
 
   // url string must start with /
-  Future<dynamic> api(String url) async {
+  Future<dynamic> api(String url, String token) async {
     String endPoint = '$_server$url';
-    String token = await getToken(_server, _username, _password);
+
     var response = await http.get(
       Uri.parse(endPoint),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
+        'Accept': 'application/json',
+        'Accept-Encoding': 'gzip, deflate',
         'x-access-token': token,
       },
     );
-
-    return jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+    if (response.statusCode == 201) {
+      return jsonDecode(response.body);
+    }
+    if (response.statusCode == 431) {
+      throw 'Request field too large with status ${response.statusCode}';
+    }
+    throw 'Request failed with status : ${response.statusCode}';
   }
 
   // post data
-  Future post(String url, dynamic params) async {
+  Future post(String url, String token, dynamic params) async {
     String endPoint = '$_server$url';
-    String token = await getToken(_server, _username, _password);
     var response = await http.post(Uri.parse(endPoint),
         headers: <String, String>{
           'Content-Type': 'application/json; charset=UTF-8',

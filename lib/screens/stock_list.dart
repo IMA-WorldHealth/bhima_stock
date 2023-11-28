@@ -73,30 +73,23 @@ class _StockListPageState extends State<StockListPage> {
                 padding: const EdgeInsets.all(0.0),
                 child: CardBhima(
                     width: screenWidth,
-                    height: screenHeight / 8,
+                    height: screenHeight / 7,
                     borderOnForeground: false,
                     elevation: 2,
                     clipBehavior: Clip.hardEdge,
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: Row(children: [
-                            const Text(
-                              'Dépot :  ',
-                              style: TextStyle(
-                                  fontSize: 15, fontWeight: FontWeight.w500),
-                            ),
-                            Text(
+                            padding: const EdgeInsets.all(8),
+                            child: Text(
                               _selectedDepotText,
                               style: TextStyle(
-                                fontSize: 20,
-                                color: Colors.blue[700],
-                              ),
-                            )
-                          ]),
-                        ),
+                                  fontSize: 15,
+                                  color: Colors.blue[700],
+                                  overflow: TextOverflow.visible),
+                            )),
                         SearchBhima(
                           onSearch: onSearch,
                           searchController: _searchController,
@@ -117,7 +110,7 @@ class _StockListPageState extends State<StockListPage> {
           // return createListView(context, snapshot);
         } else {
           return const Center(
-            child: Text('Aucune données trouvées'),
+            child: CircularProgressIndicator(),
           );
         }
       }),
@@ -203,29 +196,38 @@ class _StockListPageState extends State<StockListPage> {
         ? formatDate(rawExpirationDate, [MM, '-', yyyy])
         : null;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-      child: Row(
-        children: [
-          Chip(
-            label: Text('Lot: ${value['label']}'),
-          ),
-          expirationDate != null
-              ? Chip(
-                  avatar: const Icon(Icons.timelapse_rounded),
-                  backgroundColor: Colors.orange[200],
-                  label: Text(expirationDate),
-                )
-              : Chip(
-                  avatar: const Icon(Icons.no_backpack_rounded,
-                      color: Colors.white),
-                  backgroundColor: Colors.red[300],
-                  label: const Text(
-                    'Invalid date',
-                    style: TextStyle(color: Colors.white),
-                  ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: Wrap(
+            crossAxisAlignment: WrapCrossAlignment.start,
+            alignment: WrapAlignment.start,
+            runAlignment: WrapAlignment.spaceBetween,
+            spacing: 3.0,
+            children: [
+              Chip(
+                label: Text(
+                  'Lot: ${value['label']}',
+                  style: const TextStyle(fontSize: 14),
                 ),
-        ],
-      ),
-    );
+              ),
+              expirationDate != null
+                  ? Chip(
+                      avatar: const Icon(Icons.timelapse_rounded),
+                      backgroundColor: Colors.orange[200],
+                      label: Text(expirationDate),
+                    )
+                  : Chip(
+                      avatar: const Icon(Icons.no_backpack_rounded,
+                          color: Colors.white),
+                      backgroundColor: Colors.red[300],
+                      label: const Text(
+                        'Invalid date',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+            ],
+          ),
+        ));
   }
 }

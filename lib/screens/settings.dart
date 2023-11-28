@@ -6,10 +6,8 @@ import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/services/connect.dart';
 import 'package:bhima_collect/services/db.dart';
 import 'package:bhima_collect/utilities/util.dart';
-// import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-// import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bhima_collect/utilities/toast_bhima.dart';
 
@@ -27,13 +25,13 @@ class _SettingsPageState extends State<SettingsPage> {
   var txtServerUrl = TextEditingController();
   var txtUsername = TextEditingController();
   var txtPassword = TextEditingController();
-  // late StreamSubscription subscription;
-  // bool _isConnectionSucceed = false;
   bool _isButtonDisabled = false;
   bool isDeviceConnected = false;
   String _serverUrl = '';
   String _username = '';
   String _password = '';
+  String _token = '';
+  double _progressValue = 0.0;
 
   @override
   void initState() {
@@ -44,7 +42,10 @@ class _SettingsPageState extends State<SettingsPage> {
   Future checkServerConnection() async {
     try {
       // init connexion by getting the user token
-      await connexion.getToken(_serverUrl, _username, _password);
+      var token = await connexion.getToken(_serverUrl, _username, _password);
+      setState(() {
+        _token = token;
+      });
     } catch (e) {
       throw Exception(e);
     }
@@ -52,12 +53,15 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future fetchLots() async {
     try {
+      setState(() {
+        _progressValue += 0.1;
+      });
       /**
        * Include empty lots for having lots which are sent by not yet received
        */
       const lotDataUrl = '/stock/lots/depots?includeEmptyLot=1&fullList=1';
 
-      List lotsRaw = await connexion.api(lotDataUrl);
+      List lotsRaw = await connexion.api(lotDataUrl, _token);
 
       List<Lot> lots = lotsRaw.map((lot) {
         return Lot(
@@ -96,6 +100,9 @@ class _SettingsPageState extends State<SettingsPage> {
       await Lot.txInsertLot(database, lots);
       // import into inventory_lot and inventory table
       await InventoryLot.import(database);
+      setState(() {
+        _progressValue += 0.1;
+      });
     } catch (e) {
       throw Exception(e);
     }
@@ -104,10 +111,13 @@ class _SettingsPageState extends State<SettingsPage> {
   Future syncDepots() async {
     try {
       // get all depots
-      List depots = await connexion.api('/depots');
+      setState(() {
+        _progressValue += 0.1;
+      });
+      List depots = await connexion.api('/depots', _token);
       // get only depots of the given user
       List userDepots =
-          await connexion.api('/users/${connexion.user['id']}/depots');
+          await connexion.api('/users/${connexion.user['id']}/depots', _token);
 
       // update the connection status message
       List<Depot> userDepotList = depots.where((depot) {
@@ -123,6 +133,9 @@ class _SettingsPageState extends State<SettingsPage> {
       // write new fresh depots entries
       // insert new with transaction
       await Depot.txInsertLot(database, userDepotList);
+      setState(() {
+        _progressValue += 0.1;
+      });
     } catch (e) {
       if (kDebugMode) {
         print('ERROR SYNC DEpot :  $e');
@@ -140,17 +153,25 @@ class _SettingsPageState extends State<SettingsPage> {
 
         // check the connection to the server
         await checkServerConnection();
-
+        setState(() {
+          _progressValue += 0.1;
+        });
         // sync the users depots
         await syncDepots();
-
+        setState(() {
+          _progressValue += 0.1;
+        });
         // fetch lots
         await fetchLots();
 
+        setState(() {
+          _progressValue = 1.0;
+        });
         // save settings as preferences
         await _saveSettings();
         setState(() {
           _isButtonDisabled = false;
+          _progressValue = 0.0;
         });
 
         // ignore: use_build_context_synchronously
@@ -159,7 +180,9 @@ class _SettingsPageState extends State<SettingsPage> {
         setState(() {
           _isButtonDisabled = false;
         });
-        if (kDebugMode) print('ERROR SERVER : $e');
+        setState(() {
+          _progressValue = 0.0;
+        });
         // ignore: use_build_context_synchronously
         alertError(context, 'Echec de synchronisation \n ${e.toString()}');
       }
@@ -310,6 +333,23 @@ class _SettingsPageState extends State<SettingsPage> {
                       : const Text('Soumettre'),
                 ),
               ),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: !_isButtonDisabled
+                    ? null
+                    : Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          LinearProgressIndicator(
+                              backgroundColor: Colors.blue[50],
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                  Colors.blue),
+                              value: _progressValue),
+                          Text(
+                              'Téléchargement à ${(_progressValue * 100).round()}%'),
+                        ],
+                      ),
+              )
             ],
           )),
     );

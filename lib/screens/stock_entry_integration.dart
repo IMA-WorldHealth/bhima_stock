@@ -1,4 +1,5 @@
 import 'package:bhima_collect/models/inventory_lot.dart';
+import 'package:bhima_collect/utilities/util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -13,7 +14,7 @@ import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/services/db.dart';
 
 class StockEntryIntegration extends StatefulWidget {
-  const StockEntryIntegration({Key? key}) : super(key: key);
+  const StockEntryIntegration({super.key});
 
   @override
   State<StockEntryIntegration> createState() => _StockEntryIntegrationState();
@@ -34,7 +35,7 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
   String _selectedDepotUuid = '';
   String _selectedDepotText = '';
   int? _userId;
-  bool _savingSucceed = false;
+  // bool _savingSucceed = false;
 
   DateTime _selectedDate = DateTime.now();
   final _customDateFormat = [dd, ' ', MM, ' ', yyyy];
@@ -178,7 +179,7 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
 
   Widget inventoryTypeaheadField(int index) {
     final TextEditingController typeAheadController = TextEditingController();
-    Future<List<Lot>> _loadInventories(String pattern) async {
+    Future<List<Lot>> loadInventories(String pattern) async {
       List<Lot> allLots = await Lot.inventories(database, _selectedDepotUuid);
       return allLots
           .where((element) =>
@@ -194,7 +195,7 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
         decoration: const InputDecoration(labelText: 'Inventaire'),
       ),
       suggestionsCallback: (pattern) async {
-        return _loadInventories(pattern);
+        return loadInventories(pattern);
       },
       itemBuilder: (context, Lot suggestion) {
         return Column(
@@ -232,7 +233,7 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
   Widget stockEntryStartPage() {
     String formattedSelectedDate = formatDate(_selectedDate, _customDateFormat);
 
-    Future _selectDate(BuildContext context) async {
+    Future selectDate(BuildContext context) async {
       final DateTime? picked = await showDatePicker(
         context: context,
         initialDate: _selectedDate, // Refer step 1
@@ -243,6 +244,7 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
         _selectedDate = picked;
         formattedSelectedDate = formatDate(_selectedDate, _customDateFormat);
         _txtDate.text = formattedSelectedDate;
+        // ignore: use_build_context_synchronously
         Provider.of<EntryMovement>(context, listen: false).setDate =
             _selectedDate;
       }
@@ -258,7 +260,7 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
             readOnly: true, // when true user cannot edit text
             onTap: () async {
               //when click we have to show the datepicker
-              await _selectDate(context);
+              await selectDate(context);
             }),
         TextFormField(
           controller: _txtQuantity,
@@ -304,6 +306,7 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
         var hrFormattedExpirationDate =
             formatDate(expirationDate, _customDateFormat);
         txtExpirationDate.text = hrFormattedExpirationDate;
+        // ignore: use_build_context_synchronously
         Provider.of<EntryMovement>(context, listen: false)
             .setLot(index, 'expiration_date', expirationDate);
       }
@@ -396,7 +399,10 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
 
     Future batchInsertMovements(var lots) async {
       var movementUuid = _uuid.v4();
-      return lots.forEach((element) async {
+      List<StockMovement> movements = [];
+      List<Lot> batch = [];
+
+      lots.forEach((element) {
         if (element != null && element['lot_uuid'] != null) {
           var lot = Lot(
             uuid: element['lot_uuid'],
@@ -441,12 +447,19 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
             quantity: int.parse(element['quantity']),
             unitCost: double.parse(element['unit_cost']),
           );
-          // insert lot
-          await Lot.insertLot(database, lot);
-          // insert movement
-          await StockMovement.insertMovement(database, movement);
+          batch.add(lot);
+          movements.add(movement);
         }
       });
+
+      /* use the transaction, if you have a array of data to record,
+      * for good performance
+      */
+      // insert lot
+      await Lot.txInsertLot(database, batch);
+
+      // insert the movement
+      await StockMovement.txInsertMovement(database, movements);
     }
 
     Future<dynamic> save() {
@@ -466,11 +479,7 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
         Provider.of<EntryMovement>(context, listen: false).reset();
 
         // back to home
-        Navigator.pushNamed(context, '/');
-
-        setState(() {
-          _savingSucceed = true;
-        });
+        Navigator.pushNamed(context, '/home');
 
         return true;
       });
@@ -493,21 +502,32 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
             itemBuilder: (context, index) {
               if (lots.isNotEmpty && lots[index] != null) {
                 var value = lots[index];
+
+                dynamic rawExpirationDate;
+                if (value['expiration_date'].runtimeType == String) {
+                  rawExpirationDate = parseDate(value['expiration_date']);
+                } else {
+                  rawExpirationDate = value['expiration_date'];
+                }
+
+                dynamic expirationDate = rawExpirationDate != null
+                    ? formatDate(rawExpirationDate, _customDateFormat)
+                    : '-';
+
                 return ListTile(
-                  title: Text(value['inventory_text']),
+                  title: Text(value['inventory_text'] ?? ''),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(value['lot_label']),
-                      Text(
-                          'Expiration : ${formatDate(value['expiration_date'], _customDateFormat)}'),
-                      Text('Coût unitaire : ${value['unit_cost']}'),
+                      Text(value['lot_label'] ?? ''),
+                      Text('Expiration : $expirationDate'),
+                      Text('Coût unitaire : ${value['unit_cost'] ?? 0}'),
                     ],
                   ),
-                  trailing: Chip(label: Text(value['quantity'])),
+                  trailing: Chip(label: Text(value['quantity'] ?? '0')),
                 );
               } else {
-                return Row();
+                return const Row();
               }
             },
           )),

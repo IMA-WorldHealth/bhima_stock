@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_toastify/components/enums.dart' as enums;
 import 'package:flutter_toastify/flutter_toastify.dart';
-// import 'package:fluttertoast/fluttertoast.dart';
 import 'package:rflutter_alert/rflutter_alert.dart';
 
 handleError(String msg, BuildContext context) {
@@ -14,14 +13,6 @@ handleError(String msg, BuildContext context) {
     background: const Color.fromARGB(255, 205, 63, 63),
     onDismiss: () {},
   ).show(context);
-  // Fluttertoast.showToast(
-  //     msg: msg,
-  //     toastLength: Toast.LENGTH_LONG,
-  //     gravity: ToastGravity.TOP,
-  //     timeInSecForIosWeb: 3,
-  //     backgroundColor: Colors.red[500],
-  //     textColor: Colors.white,
-  //     fontSize: 16);
 }
 
 handleSuccess(String msg, BuildContext context) {
@@ -34,14 +25,6 @@ handleSuccess(String msg, BuildContext context) {
     background: const Color.fromARGB(255, 63, 205, 170),
     onDismiss: () {},
   ).show(context);
-  // Fluttertoast.showToast(
-  //     msg: msg,
-  //     toastLength: Toast.LENGTH_LONG,
-  //     gravity: ToastGravity.TOP,
-  //     timeInSecForIosWeb: 1,
-  //     backgroundColor: const Color.fromARGB(255, 62, 197, 131),
-  //     textColor: Colors.white,
-  //     fontSize: 16);
 }
 
 alertError(BuildContext context, String msg) {

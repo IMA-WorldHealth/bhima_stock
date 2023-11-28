@@ -1,6 +1,5 @@
 // ignore_for_file: non_constant_identifier_names
 import 'package:bhima_collect/utilities/util.dart';
-import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqlite_api.dart';
 
 class Lot {
