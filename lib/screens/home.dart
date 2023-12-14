@@ -9,8 +9,11 @@ import 'package:bhima_collect/screens/depot.dart';
 import 'package:bhima_collect/screens/settings.dart';
 import 'package:bhima_collect/services/db.dart';
 import 'package:bhima_collect/utilities/toast_bhima.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:date_format/date_format.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bhima_collect/services/connect.dart';
@@ -43,11 +46,48 @@ class _HomePageState extends State<HomePage> {
   double _progress = 0.0;
   int _countSynced = 0;
   int _maxToSync = 0;
-
+  ConnectivityResult _connectionStatus = ConnectivityResult.none;
+  final Connectivity _connectivity = Connectivity();
+  late StreamSubscription<ConnectivityResult> _connectivitySubscription;
   @override
   void initState() {
     super.initState();
     _loadSavedPreferences();
+    initConnectivity();
+
+    _connectivitySubscription =
+        _connectivity.onConnectivityChanged.listen(_updateConnectionStatus);
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription.cancel();
+    super.dispose();
+  }
+
+  Future<void> initConnectivity() async {
+    late ConnectivityResult result;
+    // Platform messages may fail, so we use a try/catch PlatformException.
+    try {
+      result = await _connectivity.checkConnectivity();
+    } on PlatformException catch (e) {
+      if (kDebugMode) print('Couldn\'t check connectivity status $e');
+      return;
+    }
+    // If the widget was removed from the tree while the asynchronous platform
+    // message was in flight, we want to discard the reply rather than calling
+    // setState to update our non-existent appearance.
+    if (!mounted) {
+      return Future.value(null);
+    }
+
+    return _updateConnectionStatus(result);
+  }
+
+  Future<void> _updateConnectionStatus(ConnectivityResult result) async {
+    setState(() {
+      _connectionStatus = result;
+    });
   }
 
   //Loading settings values on start
@@ -75,14 +115,19 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future serverConnection() async {
-    try {
-      // init connexion by getting the user token
-      var token = await connexion.getToken(_serverUrl, _username, _password);
-      setState(() {
-        _token = token;
-      });
-    } catch (e) {
-      throw Exception(e);
+    if (_connectionStatus == ConnectivityResult.mobile ||
+        _connectionStatus == ConnectivityResult.wifi) {
+      try {
+        // init connexion by getting the user token
+        var token = await connexion.getToken(_serverUrl, _username, _password);
+        setState(() {
+          _token = token;
+        });
+      } catch (e) {
+        rethrow;
+      }
+    } else {
+      throw ("Vous n'etes connecté à un réseau");
     }
   }
 
@@ -274,6 +319,9 @@ class _HomePageState extends State<HomePage> {
         });
 
         await _saveSyncInfo(_formattedLastUpdate, _countSynced, _maxToSync);
+        setState(() {
+          _progress = 0.0;
+        });
         // ignore: use_build_context_synchronously
         alertSuccess(context, 'Synchronisation des données réussie');
       } catch (e) {

@@ -6,8 +6,10 @@ import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/services/connect.dart';
 import 'package:bhima_collect/services/db.dart';
 import 'package:bhima_collect/utilities/util.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bhima_collect/utilities/toast_bhima.dart';
 
@@ -32,22 +34,65 @@ class _SettingsPageState extends State<SettingsPage> {
   String _password = '';
   String _token = '';
   double _progressValue = 0.0;
-
+  ConnectivityResult _connectionStatus = ConnectivityResult.none;
+  final Connectivity _connectivity = Connectivity();
+  late StreamSubscription<ConnectivityResult> _connectivitySubscription;
+  final List<Depot> depots = [];
   @override
   void initState() {
     super.initState();
     _loadSettings();
+    initConnectivity();
+
+    _connectivitySubscription =
+        _connectivity.onConnectivityChanged.listen(_updateConnectionStatus);
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription.cancel();
+    super.dispose();
+  }
+
+  Future<void> initConnectivity() async {
+    late ConnectivityResult result;
+    // Platform messages may fail, so we use a try/catch PlatformException.
+    try {
+      result = await _connectivity.checkConnectivity();
+    } on PlatformException catch (e) {
+      if (kDebugMode) print('Couldn\'t check connectivity status $e');
+      return;
+    }
+    // If the widget was removed from the tree while the asynchronous platform
+    // message was in flight, we want to discard the reply rather than calling
+    // setState to update our non-existent appearance.
+    if (!mounted) {
+      return Future.value(null);
+    }
+
+    return _updateConnectionStatus(result);
+  }
+
+  Future<void> _updateConnectionStatus(ConnectivityResult result) async {
+    setState(() {
+      _connectionStatus = result;
+    });
   }
 
   Future checkServerConnection() async {
-    try {
-      // init connexion by getting the user token
-      var token = await connexion.getToken(_serverUrl, _username, _password);
-      setState(() {
-        _token = token;
-      });
-    } catch (e) {
-      throw Exception(e);
+    if (_connectionStatus == ConnectivityResult.mobile ||
+        _connectionStatus == ConnectivityResult.wifi) {
+      try {
+        // init connexion by getting the user token
+        var token = await connexion.getToken(_serverUrl, _username, _password);
+        setState(() {
+          _token = token;
+        });
+      } catch (e) {
+        rethrow;
+      }
+    } else {
+      throw ("Vous n'etes connecté à un réseau");
     }
   }
 
@@ -59,7 +104,7 @@ class _SettingsPageState extends State<SettingsPage> {
       /**
        * Include empty lots for having lots which are sent by not yet received
        */
-      const lotDataUrl = '/stock/lots/depots?includeEmptyLot=1&fullList=1';
+      const lotDataUrl = '/stock/lots/depots?includeEmptyLot=0&fullList=1';
 
       List lotsRaw = await connexion.api(lotDataUrl, _token);
 

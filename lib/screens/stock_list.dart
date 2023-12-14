@@ -73,7 +73,7 @@ class _StockListPageState extends State<StockListPage> {
                 padding: const EdgeInsets.all(0.0),
                 child: CardBhima(
                     width: screenWidth,
-                    height: screenHeight / 7,
+                    height: screenHeight / 6.1,
                     borderOnForeground: false,
                     elevation: 2,
                     clipBehavior: Clip.hardEdge,
