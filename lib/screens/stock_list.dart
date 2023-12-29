@@ -49,9 +49,21 @@ class _StockListPageState extends State<StockListPage> {
   }
 
   Stream<List> _filterLot(String text) async* {
-    List allLots = await StockMovement.stockQuantityDepotFilter(
-        database, _selectedDepotUuid, text);
-    yield allLots.where((element) => element['quantity']! > 0).toList();
+    List allLots =
+        await StockMovement.stockQuantityDepot(database, _selectedDepotUuid);
+    List lots = allLots
+        .where((lot) =>
+            lot['label']!.toLowerCase().contains(text.toLowerCase()) == true ||
+            lot['text']!.toLowerCase().contains(text.toLowerCase()) == true)
+        .toList();
+    yield lots.where((element) => element['quantity']! > 0).toList();
+  }
+
+  void clearText() {
+    setState(() {
+      _searchText = '';
+    });
+    _searchController.clear();
   }
 
   @override
@@ -91,16 +103,13 @@ class _StockListPageState extends State<StockListPage> {
                                   overflow: TextOverflow.visible),
                             )),
                         SearchBhima(
+                          clear: clearText,
                           onSearch: onSearch,
                           searchController: _searchController,
                           hintText: 'Recherche par lot, ou  nom inventaire ...',
                         ),
                       ],
                     )),
-                // child: Center(
-                //   child:
-                //   ),
-                // ),
               ),
               Expanded(
                 child: createListView(context, snapshot),

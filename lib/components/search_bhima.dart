@@ -6,6 +6,7 @@ class SearchBhima extends StatelessWidget {
       {super.key,
       required this.onSearch,
       this.name,
+      this.clear,
       this.hintText = 'Recherche ...',
       required this.searchController});
 
@@ -13,6 +14,7 @@ class SearchBhima extends StatelessWidget {
   final String? name;
   final String? hintText;
   final TextEditingController? searchController;
+  final void Function()? clear;
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +30,7 @@ class SearchBhima extends StatelessWidget {
                 Icons.clear,
                 color: Colors.black,
               ),
-              onPressed: () => searchController?.clear(),
+              onPressed: () => clear!(),
             ),
             prefixIcon: IconButton(
               icon: const Icon(

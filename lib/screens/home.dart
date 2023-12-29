@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:bhima_collect/models/depot.dart';
+import 'package:bhima_collect/models/inventory.dart';
 import 'package:bhima_collect/models/inventory_lot.dart';
 import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/models/stock_movement.dart';
@@ -14,6 +16,7 @@ import 'package:date_format/date_format.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:getwidget/getwidget.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bhima_collect/services/connect.dart';
@@ -46,9 +49,11 @@ class _HomePageState extends State<HomePage> {
   double _progress = 0.0;
   int _countSynced = 0;
   int _maxToSync = 0;
+  List<Depot> depots = [];
   ConnectivityResult _connectionStatus = ConnectivityResult.none;
   final Connectivity _connectivity = Connectivity();
   late StreamSubscription<ConnectivityResult> _connectivitySubscription;
+
   @override
   void initState() {
     super.initState();
@@ -67,16 +72,12 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> initConnectivity() async {
     late ConnectivityResult result;
-    // Platform messages may fail, so we use a try/catch PlatformException.
     try {
       result = await _connectivity.checkConnectivity();
     } on PlatformException catch (e) {
       if (kDebugMode) print('Couldn\'t check connectivity status $e');
       return;
     }
-    // If the widget was removed from the tree while the asynchronous platform
-    // message was in flight, we want to discard the reply rather than calling
-    // setState to update our non-existent appearance.
     if (!mounted) {
       return Future.value(null);
     }
@@ -124,7 +125,7 @@ class _HomePageState extends State<HomePage> {
           _token = token;
         });
       } catch (e) {
-        rethrow;
+        throw Exception(e);
       }
     } else {
       throw ("Vous n'etes connecté à un réseau");
@@ -133,55 +134,87 @@ class _HomePageState extends State<HomePage> {
 
   Future fetchLots() async {
     try {
-      /**
+      setState(() {
+        _progress += 0.1;
+      });
+      depots = await Depot.depots(database);
+
+      // clean previous lots
+      Lot.clean(database);
+      // collect the lots by deposit
+      for (var depot in depots) {
+        String depotUuid = depot.uuid;
+        /**
        * Include empty lots for having lots which are sent by not yet received
        */
-      const lotDataUrl = '/stock/lots/depots?includeEmptyLot=1';
-      List lotsRaw = await connexion.api(lotDataUrl, _token);
+        String lotDataUrl =
+            '/stock/lots/depots?includeEmptyLot=0&fullList=1&depot_uuid=$depotUuid';
+        List lotsRaw = await connexion.api(lotDataUrl, _token);
+
+        List<Lot> lots = lotsRaw.map((lot) {
+          return Lot(
+            uuid: lot['uuid'],
+            label: lot['label'],
+            lot_description: lot['lot_description'],
+            code: lot['code'],
+            inventory_uuid: lot['inventory_uuid'],
+            text: lot['text'],
+            unit_type: lot['unit_type'],
+            group_name: lot['group_name'],
+            depot_text: lot['depot_text'],
+            depot_uuid: lot['depot_uuid'],
+            is_asset: lot['is_asset'],
+            barcode: lot['barcode'],
+            serial_number: lot['serial_number'],
+            reference_number: lot['reference_number'],
+            manufacturer_brand: lot['manufacturer_brand'],
+            manufacturer_model: lot['manufacturer_model'],
+            unit_cost: lot['unit_cost'],
+            quantity: lot['quantity'],
+            avg_consumption: lot['avg_consumption'],
+            exhausted: parseBool(lot['exhausted']),
+            expired: parseBool(lot['expired']),
+            near_expiration: parseBool(lot['near_expiration']),
+            expiration_date: parseDate(lot['expiration_date']),
+            entry_date: parseDate(lot['entry_date']),
+          );
+        }).toList();
+        // write new entries
+        await Lot.txInsertLot(database, lots);
+      }
+      await InventoryLot.import(database);
       setState(() {
         _progress += 0.1;
       });
-      List<Lot> lots = lotsRaw.map((lot) {
-        return Lot(
-          uuid: lot['uuid'],
-          label: lot['label'],
-          lot_description: lot['lot_description'],
-          code: lot['code'],
-          inventory_uuid: lot['inventory_uuid'],
-          text: lot['text'],
-          unit_type: lot['unit_type'],
-          group_name: lot['group_name'],
-          depot_text: lot['depot_text'],
-          depot_uuid: lot['depot_uuid'],
-          is_asset: lot['is_asset'],
-          barcode: lot['barcode'],
-          serial_number: lot['serial_number'],
-          reference_number: lot['reference_number'],
-          manufacturer_brand: lot['manufacturer_brand'],
-          manufacturer_model: lot['manufacturer_model'],
-          unit_cost: lot['unit_cost'],
-          quantity: lot['quantity'],
-          avg_consumption: lot['avg_consumption'],
-          exhausted: parseBool(lot['exhausted']),
-          expired: parseBool(lot['expired']),
-          near_expiration: parseBool(lot['near_expiration']),
-          expiration_date: parseDate(lot['expiration_date']),
-          entry_date: parseDate(lot['entry_date']),
-        );
+    } catch (e) {
+      throw Exception(e);
+    }
+  }
+
+  Future fetchInventory() async {
+    try {
+      setState(() {
+        _progress += 0.1;
+      });
+      const inventoryUrl = '/inventory/metadata?is_asset=0';
+
+      List inventoryRaw = await connexion.api(inventoryUrl, _token);
+
+      List<Inventory> inventories = inventoryRaw.map((inventory) {
+        return Inventory(
+            uuid: inventory['uuid'],
+            code: inventory['code'],
+            group_name: inventory['groupName'],
+            is_asset: inventory['is_asset'],
+            label: inventory['label'],
+            manufacturer_brand: inventory['manufacturer_brand'],
+            manufacturer_model: inventory['manufacturer_model'],
+            type: inventory['type'],
+            unit: inventory['unit']);
       }).toList();
 
-      // open the database
-      var database = BhimaDatabase.open();
-      // clean previous depots
-      Lot.clean(database);
-
-      // write new entries
-      await Lot.txInsertLot(database, lots);
-      setState(() {
-        _progress += 0.1;
-      });
-      // import into inventory_lot and inventory table
-      await InventoryLot.import(database);
+      await Inventory.clean(database);
+      await Inventory.txInsertInventory(database, inventories);
       setState(() {
         _progress += 0.1;
       });
@@ -302,11 +335,15 @@ class _HomePageState extends State<HomePage> {
         setState(() {
           _progress += 0.1;
         });
-        // send local lots
-        await syncLots();
-
-        // send local stock movements (not synced)
-        await syncStockMovements();
+        await Future.wait([
+          // send local lots
+          syncLots(),
+          // send local stock movements (not synced)
+          syncStockMovements(),
+          // fetch inventories
+          fetchInventory(),
+          _saveSyncInfo(_formattedLastUpdate, _countSynced, _maxToSync)
+        ]);
 
         setState(() {
           lastUpdate = DateTime.now();
@@ -318,7 +355,6 @@ class _HomePageState extends State<HomePage> {
           _progress = 0.0;
         });
 
-        await _saveSyncInfo(_formattedLastUpdate, _countSynced, _maxToSync);
         setState(() {
           _progress = 0.0;
         });
@@ -407,25 +443,6 @@ class _HomePageState extends State<HomePage> {
                             fontSize: 20,
                             color: Colors.blue[700],
                           ),
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/stock_entry').then(
-                              (value) => Provider.of<EntryMovement>(context,
-                                      listen: false)
-                                  .reset());
-                        },
-                        style: btnStyle,
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: <Widget>[
-                            Icon(Icons.add),
-                            Text('Réception'),
-                          ],
                         ),
                       ),
                     ),
@@ -526,18 +543,22 @@ class _HomePageState extends State<HomePage> {
                     Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: _progress > 0
-                          ? Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: <Widget>[
-                                LinearProgressIndicator(
-                                  backgroundColor: Colors.blue.shade50,
-                                  valueColor:
-                                      const AlwaysStoppedAnimation<Color>(
-                                          Colors.blue),
-                                  value: _progress,
-                                ),
-                                Text('${(_progress * 100).round()}%')
-                              ],
+                          ? GFProgressBar(
+                              percentage: _progress,
+                              lineHeight: 20,
+                              alignment: MainAxisAlignment.spaceBetween,
+                              leading: const Icon(Icons.sentiment_dissatisfied,
+                                  color: GFColors.DANGER),
+                              trailing: const Icon(Icons.sentiment_satisfied,
+                                  color: GFColors.SUCCESS),
+                              backgroundColor: Colors.black26,
+                              progressBarColor: GFColors.INFO,
+                              child: Text(
+                                'Syncronisation en cours... ${(_progress * 100).round()}%',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                    fontSize: 14, color: Colors.white),
+                              ),
                             )
                           : const Row(),
                     ),

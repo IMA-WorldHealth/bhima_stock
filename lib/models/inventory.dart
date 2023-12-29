@@ -79,6 +79,21 @@ class Inventory {
     );
   }
 
+  // Define a function that insert the array lot into database with transaction
+  static Future<dynamic> txInsertInventory(
+      dynamic database, List<Inventory> inventories) async {
+    final db = await database;
+    await db.rawQuery('DELETE FROM inventory;');
+    await db.transaction((txn) async {
+      final batch = txn.batch();
+      for (var inventory in inventories) {
+        batch.insert('inventory', inventory.toMap(),
+            conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+      await batch.commit(noResult: true);
+    });
+  }
+
   static Future<void> updateInventory(dynamic database, Inventory lot) async {
     // Get a reference to the database.
     final db = await database;

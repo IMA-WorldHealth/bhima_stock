@@ -71,6 +71,13 @@ class _ConfigureDepotPageState extends State<ConfigureDepotPage> {
     return Depot.depotFilter(database, text);
   }
 
+  void clearText() {
+    setState(() {
+      _textDepot = '';
+    });
+    _searchCtrller.clear();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -108,6 +115,7 @@ class _ConfigureDepotPageState extends State<ConfigureDepotPage> {
                   elevation: 2,
                   clipBehavior: Clip.hardEdge,
                   child: SearchBhima(
+                    clear: clearText,
                     onSearch: _onSeach,
                     searchController: _searchCtrller,
                     hintText: 'Recherche un dépot ...',

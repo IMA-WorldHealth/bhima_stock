@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:bhima_collect/models/depot.dart';
+import 'package:bhima_collect/models/inventory.dart';
 import 'package:bhima_collect/models/inventory_lot.dart';
 import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/services/connect.dart';
@@ -10,6 +11,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:getwidget/getwidget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bhima_collect/utilities/toast_bhima.dart';
 
@@ -27,8 +29,10 @@ class _SettingsPageState extends State<SettingsPage> {
   var txtServerUrl = TextEditingController();
   var txtUsername = TextEditingController();
   var txtPassword = TextEditingController();
+  var database = BhimaDatabase.open();
   bool _isButtonDisabled = false;
   bool isDeviceConnected = false;
+
   String _serverUrl = '';
   String _username = '';
   String _password = '';
@@ -37,7 +41,7 @@ class _SettingsPageState extends State<SettingsPage> {
   ConnectivityResult _connectionStatus = ConnectivityResult.none;
   final Connectivity _connectivity = Connectivity();
   late StreamSubscription<ConnectivityResult> _connectivitySubscription;
-  final List<Depot> depots = [];
+  List<Depot> depotList = [];
   @override
   void initState() {
     super.initState();
@@ -63,9 +67,6 @@ class _SettingsPageState extends State<SettingsPage> {
       if (kDebugMode) print('Couldn\'t check connectivity status $e');
       return;
     }
-    // If the widget was removed from the tree while the asynchronous platform
-    // message was in flight, we want to discard the reply rather than calling
-    // setState to update our non-existent appearance.
     if (!mounted) {
       return Future.value(null);
     }
@@ -89,7 +90,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _token = token;
         });
       } catch (e) {
-        rethrow;
+        throw Exception(e);
       }
     } else {
       throw ("Vous n'etes connecté à un réseau");
@@ -101,50 +102,85 @@ class _SettingsPageState extends State<SettingsPage> {
       setState(() {
         _progressValue += 0.1;
       });
-      /**
-       * Include empty lots for having lots which are sent by not yet received
-       */
-      const lotDataUrl = '/stock/lots/depots?includeEmptyLot=0&fullList=1';
-
-      List lotsRaw = await connexion.api(lotDataUrl, _token);
-
-      List<Lot> lots = lotsRaw.map((lot) {
-        return Lot(
-          uuid: lot['uuid'],
-          label: lot['label'],
-          lot_description: lot['lot_description'],
-          code: lot['code'],
-          inventory_uuid: lot['inventory_uuid'],
-          text: lot['text'],
-          unit_type: lot['unit_type'],
-          group_name: lot['group_name'],
-          depot_text: lot['depot_text'],
-          depot_uuid: lot['depot_uuid'],
-          is_asset: lot['is_asset'],
-          barcode: lot['barcode'],
-          serial_number: lot['serial_number'],
-          reference_number: lot['reference_number'],
-          manufacturer_brand: lot['manufacturer_brand'],
-          manufacturer_model: lot['manufacturer_model'],
-          unit_cost: lot['unit_cost'],
-          quantity: lot['quantity'],
-          avg_consumption: lot['avg_consumption'],
-          exhausted: parseBool(lot['exhausted']),
-          expired: parseBool(lot['expired']),
-          near_expiration: parseBool(lot['near_expiration']),
-          expiration_date: parseDate(lot['expiration_date']),
-          entry_date: parseDate(lot['entry_date']),
-        );
-      }).toList();
-
-      // open the database
-      var database = BhimaDatabase.open();
       // clean previous lots
       Lot.clean(database);
-      // write new entries
-      await Lot.txInsertLot(database, lots);
-      // import into inventory_lot and inventory table
+      // collect the lots by deposit
+      for (var dp in depotList) {
+        String depotUuid = dp.uuid;
+        /**
+       * Include empty lots for having lots which are sent by not yet received
+       */
+        String lotDataUrl =
+            '/stock/lots/depots?includeEmptyLot=0&fullList=1&depot_uuid=$depotUuid';
+        List lotsRaw = await connexion.api(lotDataUrl, _token);
+
+        List<Lot> lots = lotsRaw.map((lot) {
+          return Lot(
+            uuid: lot['uuid'],
+            label: lot['label'],
+            lot_description: lot['lot_description'],
+            code: lot['code'],
+            inventory_uuid: lot['inventory_uuid'],
+            text: lot['text'],
+            unit_type: lot['unit_type'],
+            group_name: lot['group_name'],
+            depot_text: lot['depot_text'],
+            depot_uuid: lot['depot_uuid'],
+            is_asset: lot['is_asset'],
+            barcode: lot['barcode'],
+            serial_number: lot['serial_number'],
+            reference_number: lot['reference_number'],
+            manufacturer_brand: lot['manufacturer_brand'],
+            manufacturer_model: lot['manufacturer_model'],
+            unit_cost: lot['unit_cost'],
+            quantity: lot['quantity'],
+            avg_consumption: lot['avg_consumption'],
+            exhausted: parseBool(lot['exhausted']),
+            expired: parseBool(lot['expired']),
+            near_expiration: parseBool(lot['near_expiration']),
+            expiration_date: parseDate(lot['expiration_date']),
+            entry_date: parseDate(lot['entry_date']),
+          );
+        }).toList();
+        // write new entries
+        await Lot.txInsertLot(database, lots);
+      }
       await InventoryLot.import(database);
+      setState(() {
+        _progressValue += 0.1;
+      });
+    } catch (e) {
+      if (kDebugMode) {
+        print('ERROR_LOT: $e');
+      }
+      throw Exception(e);
+    }
+  }
+
+  Future fetchInventory() async {
+    try {
+      setState(() {
+        _progressValue += 0.1;
+      });
+      const inventoryUrl = '/inventory/metadata?is_asset=0';
+
+      List inventoryRaw = await connexion.api(inventoryUrl, _token);
+
+      List<Inventory> inventories = inventoryRaw.map((inventory) {
+        return Inventory(
+            uuid: inventory['uuid'],
+            code: inventory['code'],
+            group_name: inventory['groupName'],
+            is_asset: inventory['is_asset'],
+            label: inventory['label'],
+            manufacturer_brand: inventory['manufacturer_brand'],
+            manufacturer_model: inventory['manufacturer_model'],
+            type: inventory['type'],
+            unit: inventory['unit']);
+      }).toList();
+
+      await Inventory.clean(database);
+      await Inventory.txInsertInventory(database, inventories);
       setState(() {
         _progressValue += 0.1;
       });
@@ -164,13 +200,14 @@ class _SettingsPageState extends State<SettingsPage> {
       List userDepots =
           await connexion.api('/users/${connexion.user['id']}/depots', _token);
 
-      // update the connection status message
       List<Depot> userDepotList = depots.where((depot) {
         return userDepots.contains(depot['uuid']);
       }).map((depot) {
         return Depot(uuid: depot['uuid'], text: depot['text']);
       }).toList();
-
+      setState(() {
+        depotList = userDepotList;
+      });
       // open the database
       var database = BhimaDatabase.open();
       // clean previous data
@@ -194,29 +231,25 @@ class _SettingsPageState extends State<SettingsPage> {
       try {
         setState(() {
           _isButtonDisabled = true;
-        });
-
-        // check the connection to the server
-        await checkServerConnection();
-        setState(() {
           _progressValue += 0.1;
         });
+
+        await checkServerConnection();
         // sync the users depots
         await syncDepots();
-        setState(() {
-          _progressValue += 0.1;
-        });
-        // fetch lots
-        await fetchLots();
+
+        await Future.wait([
+          // fetch lots
+          fetchLots(),
+          // fetch inventory
+          fetchInventory(),
+          // save settings as preferences
+          _saveSettings(),
+        ]);
 
         setState(() {
-          _progressValue = 1.0;
-        });
-        // save settings as preferences
-        await _saveSettings();
-        setState(() {
           _isButtonDisabled = false;
-          _progressValue = 0.0;
+          // _progressValue = 0.0;
         });
 
         // ignore: use_build_context_synchronously
@@ -224,9 +257,8 @@ class _SettingsPageState extends State<SettingsPage> {
       } catch (e) {
         setState(() {
           _isButtonDisabled = false;
-        });
-        setState(() {
           _progressValue = 0.0;
+          _token = '';
         });
         // ignore: use_build_context_synchronously
         alertError(context, 'Echec de synchronisation \n ${e.toString()}');
@@ -378,22 +410,29 @@ class _SettingsPageState extends State<SettingsPage> {
                       : const Text('Soumettre'),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: !_isButtonDisabled
-                    ? null
-                    : Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: <Widget>[
-                          LinearProgressIndicator(
-                              backgroundColor: Colors.blue[50],
-                              valueColor: const AlwaysStoppedAnimation<Color>(
-                                  Colors.blue),
-                              value: _progressValue),
-                          Text(
-                              'Téléchargement à ${(_progressValue * 100).round()}%'),
-                        ],
-                      ),
+              Container(
+                margin: const EdgeInsets.only(top: 20.0),
+                child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: !_isButtonDisabled
+                        ? null
+                        : GFProgressBar(
+                            percentage: _progressValue,
+                            lineHeight: 20,
+                            alignment: MainAxisAlignment.spaceBetween,
+                            leading: const Icon(Icons.sentiment_dissatisfied,
+                                color: GFColors.DANGER),
+                            trailing: const Icon(Icons.sentiment_satisfied,
+                                color: GFColors.SUCCESS),
+                            backgroundColor: Colors.black26,
+                            progressBarColor: GFColors.INFO,
+                            child: Text(
+                              'Chargement... ${(_progressValue * 100).round()}%',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                  fontSize: 14, color: Colors.white),
+                            ),
+                          )),
               )
             ],
           )),

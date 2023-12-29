@@ -140,7 +140,6 @@ class InventoryLot {
 
     // clear inventory_lot and inventory tables
     await db.rawQuery('DELETE FROM inventory_lot;');
-    await db.rawQuery('DELETE FROM inventory;');
 
     // insert into inventory_lot
     String queryInsertInventoryLot = '''
@@ -151,12 +150,12 @@ class InventoryLot {
     await db.rawQuery(queryInsertInventoryLot);
 
     // insert into inventory_lot
-    String queryInsertInventory = '''
-      INSERT INTO inventory (uuid, label, code, unit, group_name, is_asset, manufacturer_brand, manufacturer_brand)
-        SELECT inventory_uuid, text, code, unit_type, group_name, is_asset, manufacturer_brand, manufacturer_brand
-        FROM lot GROUP BY inventory_uuid
-    ''';
-    await db.rawQuery(queryInsertInventory);
+    // String queryInsertInventory = '''
+    //   INSERT INTO inventory (uuid, label, code, unit, group_name, is_asset, manufacturer_brand, manufacturer_brand)
+    //     SELECT inventory_uuid, text, code, unit_type, group_name, is_asset, manufacturer_brand, manufacturer_brand
+    //     FROM lot GROUP BY inventory_uuid
+    // ''';
+    // await db.rawQuery(queryInsertInventory);
   }
 
   // Define a function that inserts lot into the database

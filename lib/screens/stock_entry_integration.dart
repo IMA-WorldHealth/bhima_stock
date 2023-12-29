@@ -1,3 +1,4 @@
+import 'package:bhima_collect/models/inventory.dart';
 import 'package:bhima_collect/models/inventory_lot.dart';
 import 'package:bhima_collect/utilities/util.dart';
 import 'package:flutter/material.dart';
@@ -7,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:date_format/date_format.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
-
+import 'dart:math' as math;
 import 'package:bhima_collect/providers/entry_movement.dart';
 import 'package:bhima_collect/models/stock_movement.dart';
 import 'package:bhima_collect/models/lot.dart';
@@ -179,11 +180,11 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
 
   Widget inventoryTypeaheadField(int index) {
     final TextEditingController typeAheadController = TextEditingController();
-    Future<List<Lot>> loadInventories(String pattern) async {
-      List<Lot> allLots = await Lot.inventories(database, _selectedDepotUuid);
-      return allLots
+    Future<List<Inventory>> loadInventories(String pattern) async {
+      List<Inventory> allIventory = await Inventory.inventories(database);
+      return allIventory
           .where((element) =>
-              element.text!.toLowerCase().contains(pattern.toLowerCase()) ==
+              element.label!.toLowerCase().contains(pattern.toLowerCase()) ==
               true)
           .toList();
     }
@@ -197,11 +198,11 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
       suggestionsCallback: (pattern) async {
         return loadInventories(pattern);
       },
-      itemBuilder: (context, Lot suggestion) {
+      itemBuilder: (context, Inventory suggestion) {
         return Column(
           children: [
             ListTile(
-              title: Text(suggestion.text ?? ''),
+              title: Text(suggestion.label ?? ''),
               subtitle: Text(suggestion.code ?? ''),
             ),
             const Divider(
@@ -210,16 +211,16 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
           ],
         );
       },
-      onSuggestionSelected: (Lot suggestion) {
-        typeAheadController.text = suggestion.text ?? '';
+      onSuggestionSelected: (Inventory suggestion) {
+        typeAheadController.text = suggestion.label ?? '';
         Provider.of<EntryMovement>(context, listen: false)
-            .setLot(index, 'inventory_uuid', suggestion.inventory_uuid);
+            .setLot(index, 'inventory_uuid', suggestion.uuid);
         Provider.of<EntryMovement>(context, listen: false)
-            .setLot(index, 'inventory_text', suggestion.text);
+            .setLot(index, 'inventory_text', suggestion.label);
         Provider.of<EntryMovement>(context, listen: false)
             .setLot(index, 'inventory_code', suggestion.code);
         Provider.of<EntryMovement>(context, listen: false)
-            .setLot(index, 'unit_type', suggestion.unit_type);
+            .setLot(index, 'unit_type', suggestion.type);
         Provider.of<EntryMovement>(context, listen: false)
             .setLot(index, 'group_name', suggestion.group_name);
         Provider.of<EntryMovement>(context, listen: false)
@@ -347,23 +348,23 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
               await selectExpirationDate(context);
             }),
         TextFormField(
-          decoration: const InputDecoration(
-            border: UnderlineInputBorder(),
-            labelText: 'Coût unitaire',
-          ),
-          onChanged: (value) {
-            Provider.of<EntryMovement>(context, listen: false)
-                .setLot(index, 'unit_cost', value);
-          },
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Veuillez saisir le cout unitaire';
-            }
-            return null;
-          },
-          controller: txtUnitCost,
-          keyboardType: TextInputType.number,
-        ),
+            decoration: const InputDecoration(
+              border: UnderlineInputBorder(),
+              labelText: 'Coût unitaire',
+            ),
+            onChanged: (value) {
+              Provider.of<EntryMovement>(context, listen: false)
+                  .setLot(index, 'unit_cost', value);
+            },
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Veuillez saisir le cout unitaire';
+              }
+              return null;
+            },
+            controller: txtUnitCost,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)]),
         TextFormField(
           decoration: const InputDecoration(
             border: UnderlineInputBorder(),
@@ -539,5 +540,47 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
         ],
       ),
     );
+  }
+}
+
+class DecimalTextInputFormatter extends TextInputFormatter {
+  DecimalTextInputFormatter({required this.decimalRange})
+      // ignore: unnecessary_null_comparison
+      : assert(decimalRange == null || decimalRange > 0);
+
+  final int decimalRange;
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue, // unused.
+    TextEditingValue newValue,
+  ) {
+    TextSelection newSelection = newValue.selection;
+    String truncated = newValue.text;
+
+    // ignore: unnecessary_null_comparison
+    if (decimalRange != null) {
+      String value = newValue.text;
+
+      if (value.contains(".") &&
+          value.substring(value.indexOf(".") + 1).length > decimalRange) {
+        truncated = oldValue.text;
+        newSelection = oldValue.selection;
+      } else if (value == ".") {
+        truncated = "0.";
+
+        newSelection = newValue.selection.copyWith(
+          baseOffset: math.min(truncated.length, truncated.length + 1),
+          extentOffset: math.min(truncated.length, truncated.length + 1),
+        );
+      }
+
+      return TextEditingValue(
+        text: truncated,
+        selection: newSelection,
+        composing: TextRange.empty,
+      );
+    }
+    return newValue;
   }
 }

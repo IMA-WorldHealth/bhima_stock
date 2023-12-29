@@ -14,7 +14,7 @@ class SplashScreen extends StatelessWidget {
           child: Image.asset('assets/icon.png'),
         ),
         const Text(
-          'Bhima Stock',
+          'BHIMA Stock',
           style: TextStyle(
               color: Colors.black87, fontSize: 16, fontWeight: FontWeight.w500),
         )

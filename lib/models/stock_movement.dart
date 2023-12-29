@@ -310,12 +310,12 @@ class StockMovement {
         FROM lot
         GROUP BY lot.depot_uuid, lot.inventory_uuid, lot.uuid
       ) z 
-      WHERE z.depot_uuid = ? OR z.inventory_text LIKE ? OR z.lot_label LIKE ? OR z.code LIKE ?
+      WHERE z.depot_uuid = ? OR z.lot_label LIKE ? OR z.inventory_text LIKE ?
       GROUP BY z.depot_uuid, z.inventory_uuid, z.lot_uuid
       ORDER BY z.inventory_text, z.lot_label;
     ''';
     final List<Map<String, dynamic>> maps =
-        await db.rawQuery(query, [depotUuid, '%$text%', '%$text%', '%$text%']);
+        await db.rawQuery(query, [depotUuid, '%$text%', '%$text%']);
 
     // Convert the List<Map<String, dynamic> into a List<StockMovement>.
     return maps;
