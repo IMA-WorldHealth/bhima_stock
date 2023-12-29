@@ -2,11 +2,8 @@ import 'dart:async';
 
 import 'package:bhima_collect/models/depot.dart';
 import 'package:bhima_collect/models/inventory.dart';
-import 'package:bhima_collect/models/inventory_lot.dart';
-import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/services/connect.dart';
 import 'package:bhima_collect/services/db.dart';
-import 'package:bhima_collect/utilities/util.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -88,72 +85,13 @@ class _SettingsPageState extends State<SettingsPage> {
         var token = await connexion.getToken(_serverUrl, _username, _password);
         setState(() {
           _token = token;
+          _progressValue += 0.1;
         });
       } catch (e) {
         throw Exception(e);
       }
     } else {
       throw ("Vous n'etes connecté à un réseau");
-    }
-  }
-
-  Future fetchLots() async {
-    try {
-      setState(() {
-        _progressValue += 0.1;
-      });
-      // clean previous lots
-      Lot.clean(database);
-      // collect the lots by deposit
-      for (var dp in depotList) {
-        String depotUuid = dp.uuid;
-        /**
-       * Include empty lots for having lots which are sent by not yet received
-       */
-        String lotDataUrl =
-            '/stock/lots/depots?includeEmptyLot=0&fullList=1&depot_uuid=$depotUuid';
-        List lotsRaw = await connexion.api(lotDataUrl, _token);
-
-        List<Lot> lots = lotsRaw.map((lot) {
-          return Lot(
-            uuid: lot['uuid'],
-            label: lot['label'],
-            lot_description: lot['lot_description'],
-            code: lot['code'],
-            inventory_uuid: lot['inventory_uuid'],
-            text: lot['text'],
-            unit_type: lot['unit_type'],
-            group_name: lot['group_name'],
-            depot_text: lot['depot_text'],
-            depot_uuid: lot['depot_uuid'],
-            is_asset: lot['is_asset'],
-            barcode: lot['barcode'],
-            serial_number: lot['serial_number'],
-            reference_number: lot['reference_number'],
-            manufacturer_brand: lot['manufacturer_brand'],
-            manufacturer_model: lot['manufacturer_model'],
-            unit_cost: lot['unit_cost'],
-            quantity: lot['quantity'],
-            avg_consumption: lot['avg_consumption'],
-            exhausted: parseBool(lot['exhausted']),
-            expired: parseBool(lot['expired']),
-            near_expiration: parseBool(lot['near_expiration']),
-            expiration_date: parseDate(lot['expiration_date']),
-            entry_date: parseDate(lot['entry_date']),
-          );
-        }).toList();
-        // write new entries
-        await Lot.txInsertLot(database, lots);
-      }
-      await InventoryLot.import(database);
-      setState(() {
-        _progressValue += 0.1;
-      });
-    } catch (e) {
-      if (kDebugMode) {
-        print('ERROR_LOT: $e');
-      }
-      throw Exception(e);
     }
   }
 
@@ -235,12 +173,12 @@ class _SettingsPageState extends State<SettingsPage> {
         });
 
         await checkServerConnection();
-        // sync the users depots
-        await syncDepots();
-
+        setState(() {
+          _progressValue += 0.1;
+        });
         await Future.wait([
-          // fetch lots
-          fetchLots(),
+          // sync the users depots
+          syncDepots(),
           // fetch inventory
           fetchInventory(),
           // save settings as preferences
@@ -249,7 +187,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
         setState(() {
           _isButtonDisabled = false;
-          // _progressValue = 0.0;
+          _progressValue = 0.0;
         });
 
         // ignore: use_build_context_synchronously
@@ -285,6 +223,7 @@ class _SettingsPageState extends State<SettingsPage> {
     await prefs.setString('server', _serverUrl);
     await prefs.setString('username', _username);
     await prefs.setString('password', _password);
+    await prefs.setString('token', _token);
     await prefs.remove('selected_depot_text');
     await prefs.remove('selected_depot_uuid');
   }

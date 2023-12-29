@@ -1,7 +1,17 @@
+// ignore_for_file: use_build_context_synchronously
+
+import 'dart:async';
+
 import 'package:bhima_collect/components/card_bhima.dart';
 import 'package:bhima_collect/components/search_bhima.dart';
 import 'package:bhima_collect/models/depot.dart';
+import 'package:bhima_collect/models/inventory_lot.dart';
+import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/services/db.dart';
+import 'package:bhima_collect/services/connect.dart';
+import 'package:bhima_collect/utilities/toast_bhima.dart';
+import 'package:bhima_collect/utilities/util.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -14,11 +24,16 @@ class ConfigureDepotPage extends StatefulWidget {
 
 class _ConfigureDepotPageState extends State<ConfigureDepotPage> {
   var database = BhimaDatabase.open();
+  var connexion = Connect();
   String _selectedDepotUuid = '';
   String _selectedDepotText = '';
   final TextEditingController _searchCtrller = TextEditingController();
   String _textDepot = '';
   Future<List<dynamic>>? _depotFuture;
+  String _token = '';
+  String _serverUrl = '';
+  bool isLoading = false;
+  int indexDepot = 0;
 
   @override
   void initState() {
@@ -45,22 +60,124 @@ class _ConfigureDepotPageState extends State<ConfigureDepotPage> {
     setState(() {
       _selectedDepotUuid = (prefs.getString('selected_depot_uuid') ?? '');
       _selectedDepotText = (prefs.getString('selected_depot_text') ?? '');
+      _serverUrl = prefs.getString('server') ?? '';
+      _token = (prefs.getString('token') ?? '');
     });
+  }
+
+  void onToggleShow(bool show) {
+    if (show) {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Chargement des lots'),
+            content: show
+                ? const CircularProgressIndicator(
+                    color: Colors.blue,
+                    strokeWidth: 5,
+                  )
+                : Icon(Icons.check_circle_outline_outlined,
+                    size: 23, color: Colors.green[200]),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.maybePop(context);
+                },
+                child: const Text('Fermer'),
+              ),
+            ],
+          );
+        },
+      );
+    }
   }
 
   // handle change on option choice
   Future<void> _onChanged(dynamic val) async {
-    final prefs = await SharedPreferences.getInstance();
-    List<Depot> userDepots = await _loadDepots();
-    Depot userSelectedDepot = userDepots
-        .where((element) => element.uuid == val.uuid.toString())
-        .toList()[0];
-    setState(() {
-      _selectedDepotUuid = userSelectedDepot.uuid;
-      _selectedDepotText = userSelectedDepot.text;
-    });
-    await prefs.setString('selected_depot_uuid', _selectedDepotUuid);
-    await prefs.setString('selected_depot_text', _selectedDepotText);
+    try {
+      setState(() {
+        isLoading = true;
+      });
+      final prefs = await SharedPreferences.getInstance();
+      List<Depot> userDepots = await _loadDepots();
+      Depot userSelectedDepot = userDepots
+          .where((element) => element.uuid == val.uuid.toString())
+          .toList()[0];
+      setState(() {
+        _selectedDepotUuid = userSelectedDepot.uuid;
+        _selectedDepotText = userSelectedDepot.text;
+      });
+      await Future.wait([
+        prefs.setString('selected_depot_uuid', _selectedDepotUuid),
+        prefs.setString('selected_depot_text', _selectedDepotText),
+        fetchLots(userSelectedDepot.uuid)
+      ]);
+      alertSuccess(context, 'Chargement des lots reussi!');
+    } catch (e) {
+      alertError(context, e.toString());
+    }
+  }
+
+  Future fetchLots(String depotUuid) async {
+    try {
+      setState(() {
+        isLoading = true;
+      });
+      // clean previous lots
+      Lot.clean(database);
+      // collect the lots by deposit
+
+      /**
+       * Include empty lots for having lots which are sent by not yet received
+       */
+      String lotDataUrl =
+          '$_serverUrl/stock/lots/depots?includeEmptyLot=0&fullList=1&depot_uuid=$depotUuid';
+      List lotsRaw = await connexion.api(lotDataUrl, _token);
+
+      List<Lot> lots = lotsRaw.map((lot) {
+        return Lot(
+          uuid: lot['uuid'],
+          label: lot['label'],
+          lot_description: lot['lot_description'],
+          code: lot['code'],
+          inventory_uuid: lot['inventory_uuid'],
+          text: lot['text'],
+          unit_type: lot['unit_type'],
+          group_name: lot['group_name'],
+          depot_text: lot['depot_text'],
+          depot_uuid: lot['depot_uuid'],
+          is_asset: lot['is_asset'],
+          barcode: lot['barcode'],
+          serial_number: lot['serial_number'],
+          reference_number: lot['reference_number'],
+          manufacturer_brand: lot['manufacturer_brand'],
+          manufacturer_model: lot['manufacturer_model'],
+          unit_cost: lot['unit_cost'],
+          quantity: lot['quantity'],
+          avg_consumption: lot['avg_consumption'],
+          exhausted: parseBool(lot['exhausted']),
+          expired: parseBool(lot['expired']),
+          near_expiration: parseBool(lot['near_expiration']),
+          expiration_date: parseDate(lot['expiration_date']),
+          entry_date: parseDate(lot['entry_date']),
+        );
+      }).toList();
+      // write new entries
+      await Lot.txInsertLot(database, lots);
+      await InventoryLot.import(database);
+      setState(() {
+        isLoading = false;
+      });
+    } catch (e) {
+      if (kDebugMode) {
+        print('ERROR_LOT: $e');
+      }
+      setState(() {
+        isLoading = false;
+      });
+      throw Exception(e);
+    }
   }
 
   Future<List<Depot>> _loadDepots() async {
@@ -130,6 +247,9 @@ class _ConfigureDepotPageState extends State<ConfigureDepotPage> {
                                 padding: const EdgeInsets.all(10.0),
                                 child: OutlinedButton(
                                     onPressed: () {
+                                      setState(() {
+                                        indexDepot = index;
+                                      });
                                       _onChanged(values[index]);
                                     },
                                     style: OutlinedButton.styleFrom(
@@ -160,15 +280,7 @@ class _ConfigureDepotPageState extends State<ConfigureDepotPage> {
                                               ),
                                             ),
                                           ),
-                                          Icon(
-                                              values[index].uuid ==
-                                                      _selectedDepotUuid
-                                                  ? Icons.check_circle
-                                                  : Icons.circle_outlined,
-                                              color: values[index].uuid ==
-                                                      _selectedDepotUuid
-                                                  ? Colors.blue
-                                                  : Colors.black)
+                                          generateLoadIcon(values[index], index)
                                         ])))
                           ]);
                         }))),
@@ -178,5 +290,25 @@ class _ConfigureDepotPageState extends State<ConfigureDepotPage> {
         },
       ),
     );
+  }
+
+  Widget generateLoadIcon(dynamic values, int index) {
+    if (!isLoading &&
+        indexDepot != index &&
+        values.uuid != _selectedDepotUuid) {
+      return const Icon(Icons.circle_outlined, color: Colors.black);
+    } else if (isLoading &&
+        indexDepot == index &&
+        values.uuid == _selectedDepotUuid) {
+      return const CircularProgressIndicator(
+        color: Colors.blue,
+        strokeWidth: 1.8,
+        strokeAlign: 0.4,
+      );
+    } else if (!isLoading && values.uuid == _selectedDepotUuid) {
+      return const Icon(Icons.check_circle, color: Colors.blue);
+    } else {
+      return const Icon(Icons.circle_outlined, color: Colors.black);
+    }
   }
 }

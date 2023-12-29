@@ -38,8 +38,8 @@ class _HomePageState extends State<HomePage> {
   DateTime lastUpdate = DateTime.now();
   String _formattedLastUpdate = '';
   String _selectedDepotText = '';
+  String _selectDepotUuid = '';
   bool _isRecentSync = false;
-  bool _isSyncing = false;
   bool _isLoading = false;
   bool isDeviceConnected = false;
   String _serverUrl = '';
@@ -49,6 +49,10 @@ class _HomePageState extends State<HomePage> {
   double _progress = 0.0;
   int _countSynced = 0;
   int _maxToSync = 0;
+  int _countSyncLoss = 0;
+  int _countSyncExit = 0;
+  int _maxToLoss = 0;
+  int _maxToExit = 0;
   List<Depot> depots = [];
   ConnectivityResult _connectionStatus = ConnectivityResult.none;
   final Connectivity _connectivity = Connectivity();
@@ -99,6 +103,7 @@ class _HomePageState extends State<HomePage> {
       _username = (prefs.getString('username') ?? '');
       _password = (prefs.getString('password') ?? '');
       _selectedDepotText = (prefs.getString('selected_depot_text') ?? '');
+      _selectDepotUuid = (prefs.getString('selected_depot_uuid') ?? '');
       _formattedLastUpdate = (prefs.getString('last_sync_date') ?? '');
       // _importedRecords = (prefs.getInt('last_sync_items') ?? 0);
       _isRecentSync = (prefs.getInt('last_sync') ?? 0) == 0 ? false : true;
@@ -134,54 +139,47 @@ class _HomePageState extends State<HomePage> {
 
   Future fetchLots() async {
     try {
-      setState(() {
-        _progress += 0.1;
-      });
-      depots = await Depot.depots(database);
-
       // clean previous lots
       Lot.clean(database);
       // collect the lots by deposit
-      for (var depot in depots) {
-        String depotUuid = depot.uuid;
-        /**
+      /**
        * Include empty lots for having lots which are sent by not yet received
        */
-        String lotDataUrl =
-            '/stock/lots/depots?includeEmptyLot=0&fullList=1&depot_uuid=$depotUuid';
-        List lotsRaw = await connexion.api(lotDataUrl, _token);
+      String lotDataUrl =
+          '/stock/lots/depots?includeEmptyLot=0&fullList=1&depot_uuid=$_selectDepotUuid';
+      List lotsRaw = await connexion.api(lotDataUrl, _token);
 
-        List<Lot> lots = lotsRaw.map((lot) {
-          return Lot(
-            uuid: lot['uuid'],
-            label: lot['label'],
-            lot_description: lot['lot_description'],
-            code: lot['code'],
-            inventory_uuid: lot['inventory_uuid'],
-            text: lot['text'],
-            unit_type: lot['unit_type'],
-            group_name: lot['group_name'],
-            depot_text: lot['depot_text'],
-            depot_uuid: lot['depot_uuid'],
-            is_asset: lot['is_asset'],
-            barcode: lot['barcode'],
-            serial_number: lot['serial_number'],
-            reference_number: lot['reference_number'],
-            manufacturer_brand: lot['manufacturer_brand'],
-            manufacturer_model: lot['manufacturer_model'],
-            unit_cost: lot['unit_cost'],
-            quantity: lot['quantity'],
-            avg_consumption: lot['avg_consumption'],
-            exhausted: parseBool(lot['exhausted']),
-            expired: parseBool(lot['expired']),
-            near_expiration: parseBool(lot['near_expiration']),
-            expiration_date: parseDate(lot['expiration_date']),
-            entry_date: parseDate(lot['entry_date']),
-          );
-        }).toList();
-        // write new entries
-        await Lot.txInsertLot(database, lots);
-      }
+      List<Lot> lots = lotsRaw.map((lot) {
+        return Lot(
+          uuid: lot['uuid'],
+          label: lot['label'],
+          lot_description: lot['lot_description'],
+          code: lot['code'],
+          inventory_uuid: lot['inventory_uuid'],
+          text: lot['text'],
+          unit_type: lot['unit_type'],
+          group_name: lot['group_name'],
+          depot_text: lot['depot_text'],
+          depot_uuid: lot['depot_uuid'],
+          is_asset: lot['is_asset'],
+          barcode: lot['barcode'],
+          serial_number: lot['serial_number'],
+          reference_number: lot['reference_number'],
+          manufacturer_brand: lot['manufacturer_brand'],
+          manufacturer_model: lot['manufacturer_model'],
+          unit_cost: lot['unit_cost'],
+          quantity: lot['quantity'],
+          avg_consumption: lot['avg_consumption'],
+          exhausted: parseBool(lot['exhausted']),
+          expired: parseBool(lot['expired']),
+          near_expiration: parseBool(lot['near_expiration']),
+          expiration_date: parseDate(lot['expiration_date']),
+          entry_date: parseDate(lot['entry_date']),
+        );
+      }).toList();
+      // write new entries
+      await Lot.txInsertLot(database, lots);
+
       await InventoryLot.import(database);
       setState(() {
         _progress += 0.1;
@@ -252,13 +250,24 @@ class _HomePageState extends State<HomePage> {
       var entryGrouped =
           entryMovement.groupListsBy((element) => element.movementUuid);
 
-      var exitGrouped =
-          exitMovement.groupListsBy((element) => element.movementUuid);
+      var exitConsumption =
+          exitMovement.where((elt) => elt.fluxId == 9).toList();
+
+      var exitLoss = exitMovement.where((elt) => elt.fluxId == 11).toList();
+
+      var exitGroupedLoss =
+          exitLoss.groupListsBy((element) => element.movementUuid);
+
+      var exitGroupedConsumption =
+          exitConsumption.groupListsBy((element) => element.movementUuid);
 
       setState(() {
-        _maxToSync = entryGrouped.length + exitGrouped.length;
+        _maxToSync = entryGrouped.length;
+        _maxToExit = exitGroupedConsumption.length;
+        _maxToLoss = exitGroupedLoss.length;
         _countSynced = 0;
-        _progress += 0.1;
+        _countSyncExit = 0;
+        _countSyncLoss = 0;
       });
 
       // NOTE: Sync entries first before exits
@@ -272,12 +281,14 @@ class _HomePageState extends State<HomePage> {
           await StockMovement.updateSyncStatus(database, key, result['uuids']);
           setState(() {
             _countSynced++;
-            _progress += 0.1;
           });
         }
       });
+      setState(() {
+        _progress += 0.1;
+      });
 
-      exitGrouped.forEach((key, value) async {
+      exitGroupedConsumption.forEach((key, value) async {
         var result = await connexion
             .post(url, _token, {'lots': value, 'sync_mobile': 1});
 
@@ -285,12 +296,23 @@ class _HomePageState extends State<HomePage> {
           // update the sync status for valid lots of the movements
           await StockMovement.updateSyncStatus(database, key, result['uuids']);
           setState(() {
-            _countSynced++;
-            _progress += 0.1;
+            _countSyncExit++;
           });
         }
       });
 
+      exitGroupedLoss.forEach((key, value) async {
+        var result = await connexion
+            .post(url, _token, {'lots': value, 'sync_mobile': 1});
+
+        if (key != null && result != null && result['uuids'] != null) {
+          // update the sync status for valid lots of the movements
+          await StockMovement.updateSyncStatus(database, key, result['uuids']);
+          setState(() {
+            _countSyncLoss++;
+          });
+        }
+      });
       // fetch fresh data from the server after exits
       await fetchLots();
       setState(() {
@@ -319,56 +341,48 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future syncBtnClicked() async {
-    if (_isSyncing) {
+    // sync data
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      // set the connection to the server
+      await serverConnection();
+      setState(() {
+        _progress += 0.1;
+      });
+      await Future.wait([
+        // send local lots
+        syncLots(),
+        // send local stock movements (not synced)
+        syncStockMovements(),
+        // fetch inventories
+        fetchInventory(),
+        _saveSyncInfo(_formattedLastUpdate, _countSynced, _maxToSync)
+      ]);
+      await fetchLots();
+
+      setState(() {
+        lastUpdate = DateTime.now();
+        _formattedLastUpdate =
+            formatDate(lastUpdate, [dd, '/', mm, '/', yyyy, '  ', HH, ':', nn]);
+        _isLoading = false;
+        _isRecentSync = true;
+        _progress = 0.0;
+      });
+
+      setState(() {
+        _progress = 0.0;
+      });
+      // ignore: use_build_context_synchronously
+      alertSuccess(context, 'Synchronisation des données réussie');
+    } catch (e) {
       setState(() {
         _isLoading = false;
+        _progress = 0.0;
       });
-      return null;
-    } else {
-      // sync data
-      setState(() {
-        _isLoading = true;
-      });
-      try {
-        // set the connection to the server
-        await serverConnection();
-        setState(() {
-          _progress += 0.1;
-        });
-        await Future.wait([
-          // send local lots
-          syncLots(),
-          // send local stock movements (not synced)
-          syncStockMovements(),
-          // fetch inventories
-          fetchInventory(),
-          _saveSyncInfo(_formattedLastUpdate, _countSynced, _maxToSync)
-        ]);
-
-        setState(() {
-          lastUpdate = DateTime.now();
-          _formattedLastUpdate = formatDate(
-              lastUpdate, [dd, '/', mm, '/', yyyy, '  ', HH, ':', nn]);
-          _isSyncing = true;
-          _isLoading = false;
-          _isRecentSync = true;
-          _progress = 0.0;
-        });
-
-        setState(() {
-          _progress = 0.0;
-        });
-        // ignore: use_build_context_synchronously
-        alertSuccess(context, 'Synchronisation des données réussie');
-      } catch (e) {
-        setState(() {
-          _isSyncing = false;
-          _isLoading = false;
-          _progress = 0.0;
-        });
-        // ignore: use_build_context_synchronously
-        alertError(context, e.toString());
-      }
+      // ignore: use_build_context_synchronously
+      alertError(context, e.toString());
     }
   }
 
@@ -570,7 +584,10 @@ class _HomePageState extends State<HomePage> {
                                 const Text('Dernière synchronisation'),
                                 Text(_formattedLastUpdate),
                                 Text(
-                                    'Données synchronisées : $_countSynced / $_maxToSync'),
+                                    'Integration : $_countSynced / $_maxToSync'),
+                                Text(
+                                    'Consommation : $_countSyncExit / $_maxToExit'),
+                                Text('Pertes : $_countSyncLoss / $_maxToLoss'),
                               ],
                             )
                           : const Row(),
