@@ -1,3 +1,5 @@
+// ignore_for_file: unnecessary_new
+
 import 'package:sqflite/sqflite.dart';
 
 class Depot {
@@ -47,6 +49,23 @@ class Depot {
     });
   }
 
+  // A method to the filter depot list
+  static Future<List<Depot>> depotFilter(dynamic database, String text) async {
+    final db = await database;
+
+    //Query
+    final List<Map<String, dynamic>> maps =
+        await db.query('depot', where: 'text LIKE ?', whereArgs: ['%$text%']);
+
+    // Convert the List<Map<String, dynamic> into a List<Depot>.
+    return List.generate(maps.length, (i) {
+      return Depot(
+        uuid: maps[i]['uuid'],
+        text: maps[i]['text'],
+      );
+    });
+  }
+
   // Define a function that inserts depots into the database
   static Future<void> insertDepot(dynamic database, Depot depot) async {
     // Get a reference to the database.
@@ -61,6 +80,19 @@ class Depot {
       depot.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  // Define a function that insert the array depots into database with transaction
+  static Future<void> txInsertLot(dynamic database, List<Depot> depots) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      final batch = txn.batch();
+      for (var depot in depots) {
+        batch.insert('depot', depot.toMap(),
+            conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+      await batch.commit(noResult: true);
+    });
   }
 
   static Future<void> updateDepot(dynamic database, Depot depot) async {

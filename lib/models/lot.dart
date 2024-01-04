@@ -227,6 +227,19 @@ class Lot {
     );
   }
 
+  // Define a function that insert the array lot into database with transaction
+  static Future<dynamic> txInsertLot(dynamic database, List<Lot> lots) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      final batch = txn.batch();
+      for (var lot in lots) {
+        batch.insert('lot', lot.toMap(),
+            conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+      await batch.commit(noResult: true);
+    });
+  }
+
   static Future<void> updateLot(dynamic database, Lot lot) async {
     // Get a reference to the database.
     final db = await database;

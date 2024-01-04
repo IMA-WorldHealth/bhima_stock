@@ -1,14 +1,20 @@
+import 'dart:async';
+
 import 'package:bhima_collect/models/depot.dart';
-import 'package:bhima_collect/models/inventory_lot.dart';
-import 'package:bhima_collect/models/lot.dart';
+import 'package:bhima_collect/models/inventory.dart';
 import 'package:bhima_collect/services/connect.dart';
 import 'package:bhima_collect/services/db.dart';
-import 'package:bhima_collect/utilities/util.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:getwidget/getwidget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:bhima_collect/utilities/toast_bhima.dart';
 
+@immutable
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({Key? key}) : super(key: key);
+  const SettingsPage({super.key});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -20,128 +26,141 @@ class _SettingsPageState extends State<SettingsPage> {
   var txtServerUrl = TextEditingController();
   var txtUsername = TextEditingController();
   var txtPassword = TextEditingController();
-
+  var database = BhimaDatabase.open();
   bool _isButtonDisabled = false;
-  bool _isConnectionSucceed = false;
-  bool _isSyncFailed = false;
-  bool _isDepotSynced = false;
-  bool _isLotsImported = false;
+  bool isDeviceConnected = false;
+
   String _serverUrl = '';
   String _username = '';
   String _password = '';
-
+  String _token = '';
+  double _progressValue = 0.0;
+  ConnectivityResult _connectionStatus = ConnectivityResult.none;
+  final Connectivity _connectivity = Connectivity();
+  late StreamSubscription<ConnectivityResult> _connectivitySubscription;
+  List<Depot> depotList = [];
   @override
   void initState() {
     super.initState();
     _loadSettings();
+    initConnectivity();
+
+    _connectivitySubscription =
+        _connectivity.onConnectivityChanged.listen(_updateConnectionStatus);
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription.cancel();
+    super.dispose();
+  }
+
+  Future<void> initConnectivity() async {
+    late ConnectivityResult result;
+    // Platform messages may fail, so we use a try/catch PlatformException.
+    try {
+      result = await _connectivity.checkConnectivity();
+    } on PlatformException catch (e) {
+      if (kDebugMode) print('Couldn\'t check connectivity status $e');
+      return;
+    }
+    if (!mounted) {
+      return Future.value(null);
+    }
+
+    return _updateConnectionStatus(result);
+  }
+
+  Future<void> _updateConnectionStatus(ConnectivityResult result) async {
+    setState(() {
+      _connectionStatus = result;
+    });
   }
 
   Future checkServerConnection() async {
-    _isConnectionSucceed = false;
-    try {
-      // init connexion by getting the user token
-      await connexion.getToken(_serverUrl, _username, _password);
-      // update the connection status message
-      setState(() {
-        _isConnectionSucceed = true;
-      });
-    } catch (e) {
-      _isConnectionSucceed = false;
+    if (_connectionStatus == ConnectivityResult.mobile ||
+        _connectionStatus == ConnectivityResult.wifi) {
+      try {
+        // init connexion by getting the user token
+        var token = await connexion.getToken(_serverUrl, _username, _password);
+        setState(() {
+          _token = token;
+          _progressValue += 0.1;
+        });
+      } catch (e) {
+        throw Exception(e);
+      }
+    } else {
+      throw ("Vous n'etes connecté à un réseau");
     }
   }
 
-  Future fetchLots() async {
+  Future fetchInventory() async {
     try {
-      /**
-       * Include empty lots for having lots which are sent by not yet received
-       */
-      const lotDataUrl = '/stock/lots/depots?includeEmptyLot=1&fullList=1';
+      setState(() {
+        _progressValue += 0.1;
+      });
+      const inventoryUrl = '/inventory/metadata?is_asset=0';
 
-      List lotsRaw = await connexion.api(lotDataUrl);
+      List inventoryRaw = await connexion.api(inventoryUrl, _token);
 
-      List<Lot> lots = lotsRaw.map((lot) {
-        return Lot(
-          uuid: lot['uuid'],
-          label: lot['label'],
-          lot_description: lot['lot_description'],
-          code: lot['code'],
-          inventory_uuid: lot['inventory_uuid'],
-          text: lot['text'],
-          unit_type: lot['unit_type'],
-          group_name: lot['group_name'],
-          depot_text: lot['depot_text'],
-          depot_uuid: lot['depot_uuid'],
-          is_asset: lot['is_asset'],
-          barcode: lot['barcode'],
-          serial_number: lot['serial_number'],
-          reference_number: lot['reference_number'],
-          manufacturer_brand: lot['manufacturer_brand'],
-          manufacturer_model: lot['manufacturer_model'],
-          unit_cost: lot['unit_cost'],
-          quantity: lot['quantity'],
-          avg_consumption: lot['avg_consumption'],
-          exhausted: parseBool(lot['exhausted']),
-          expired: parseBool(lot['expired']),
-          near_expiration: parseBool(lot['near_expiration']),
-          expiration_date: parseDate(lot['expiration_date']),
-          entry_date: parseDate(lot['entry_date']),
-        );
+      List<Inventory> inventories = inventoryRaw.map((inventory) {
+        return Inventory(
+            uuid: inventory['uuid'],
+            code: inventory['code'],
+            group_name: inventory['groupName'],
+            is_asset: inventory['is_asset'],
+            label: inventory['label'],
+            manufacturer_brand: inventory['manufacturer_brand'],
+            manufacturer_model: inventory['manufacturer_model'],
+            type: inventory['type'],
+            unit: inventory['unit']);
       }).toList();
 
-      // open the database
-      var database = BhimaDatabase.open();
-      // clean previous lots
-      Lot.clean(database);
-      // write new entries
-      lots.forEach((lot) async {
-        await Lot.insertLot(database, lot);
-      });
-
-      // import into inventory_lot and inventory table
-      await InventoryLot.import(database);
-
+      await Inventory.clean(database);
+      await Inventory.txInsertInventory(database, inventories);
       setState(() {
-        _isLotsImported = true;
+        _progressValue += 0.1;
       });
     } catch (e) {
-      print(
-          'Error during fetch of lots : $e, $_serverUrl, $_username, $_password');
+      throw Exception(e);
     }
   }
 
   Future syncDepots() async {
-    _isDepotSynced = false;
     try {
       // get all depots
-      List depots = await connexion.api('/depots');
-
+      setState(() {
+        _progressValue += 0.1;
+      });
+      List depots = await connexion.api('/depots', _token);
       // get only depots of the given user
       List userDepots =
-          await connexion.api('/users/${connexion.user['id']}/depots');
+          await connexion.api('/users/${connexion.user['id']}/depots', _token);
 
-      // update the connection status message
       List<Depot> userDepotList = depots.where((depot) {
         return userDepots.contains(depot['uuid']);
       }).map((depot) {
         return Depot(uuid: depot['uuid'], text: depot['text']);
       }).toList();
-
+      setState(() {
+        depotList = userDepotList;
+      });
       // open the database
       var database = BhimaDatabase.open();
       // clean previous data
       Depot.clean(database);
       // write new fresh depots entries
-      userDepotList.forEach((depot) async {
-        await Depot.insertDepot(database, depot);
-      });
-
+      // insert new with transaction
+      await Depot.txInsertLot(database, userDepotList);
       setState(() {
-        _isDepotSynced = true;
+        _progressValue += 0.1;
       });
     } catch (e) {
-      setState(() {
-        _isDepotSynced = false;
-      });
+      if (kDebugMode) {
+        print('ERROR SYNC DEpot :  $e');
+      }
+      throw Exception(e);
     }
   }
 
@@ -150,27 +169,37 @@ class _SettingsPageState extends State<SettingsPage> {
       try {
         setState(() {
           _isButtonDisabled = true;
+          _progressValue += 0.1;
         });
 
-        // check the connection to the server
         await checkServerConnection();
-
-        // sync the users depots
-        await syncDepots();
-
-        // fetch lots
-        await fetchLots();
-
-        // save settings as preferences
-        await _saveSettings();
+        setState(() {
+          _progressValue += 0.1;
+        });
+        await Future.wait([
+          // sync the users depots
+          syncDepots(),
+          // fetch inventory
+          fetchInventory(),
+          // save settings as preferences
+          _saveSettings(),
+        ]);
 
         setState(() {
           _isButtonDisabled = false;
+          _progressValue = 0.0;
         });
+
+        // ignore: use_build_context_synchronously
+        alertSuccess(context, 'Synchronisation des données réussie');
       } catch (e) {
         setState(() {
-          _isSyncFailed = true;
+          _isButtonDisabled = false;
+          _progressValue = 0.0;
+          _token = '';
         });
+        // ignore: use_build_context_synchronously
+        alertError(context, 'Echec de synchronisation \n ${e.toString()}');
       }
     }
   }
@@ -194,6 +223,7 @@ class _SettingsPageState extends State<SettingsPage> {
     await prefs.setString('server', _serverUrl);
     await prefs.setString('username', _username);
     await prefs.setString('password', _password);
+    await prefs.setString('token', _token);
     await prefs.remove('selected_depot_text');
     await prefs.remove('selected_depot_uuid');
   }
@@ -302,22 +332,46 @@ class _SettingsPageState extends State<SettingsPage> {
                           await submit();
                         },
                   child: _isButtonDisabled
-                      ? const Text('En cours de traitement...')
+                      ? const Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            Text('En cours de traitement...'),
+                            SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.blue,
+                                  strokeWidth: 4.0,
+                                  strokeCap: StrokeCap.round,
+                                )),
+                          ],
+                        )
                       : const Text('Soumettre'),
                 ),
               ),
-              Center(
-                child: _isDepotSynced && _isLotsImported
-                    ? const Text(
-                        'Synchronisation des données réussie',
-                        style: TextStyle(color: Colors.green),
-                      )
-                    : _isSyncFailed
-                        ? const Text(
-                            'Echec de synchronisation',
-                            style: TextStyle(color: Colors.red),
-                          )
-                        : null,
+              Container(
+                margin: const EdgeInsets.only(top: 20.0),
+                child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: !_isButtonDisabled
+                        ? null
+                        : GFProgressBar(
+                            percentage: _progressValue,
+                            lineHeight: 20,
+                            alignment: MainAxisAlignment.spaceBetween,
+                            leading: const Icon(Icons.sentiment_dissatisfied,
+                                color: GFColors.DANGER),
+                            trailing: const Icon(Icons.sentiment_satisfied,
+                                color: GFColors.SUCCESS),
+                            backgroundColor: Colors.black26,
+                            progressBarColor: GFColors.INFO,
+                            child: Text(
+                              'Chargement... ${(_progressValue * 100).round()}%',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                  fontSize: 14, color: Colors.white),
+                            ),
+                          )),
               )
             ],
           )),

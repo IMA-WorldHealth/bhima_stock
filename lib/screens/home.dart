@@ -1,3 +1,7 @@
+import 'dart:async';
+
+import 'package:bhima_collect/models/depot.dart';
+import 'package:bhima_collect/models/inventory.dart';
 import 'package:bhima_collect/models/inventory_lot.dart';
 import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/models/stock_movement.dart';
@@ -6,16 +10,22 @@ import 'package:bhima_collect/providers/exit_movement.dart';
 import 'package:bhima_collect/screens/depot.dart';
 import 'package:bhima_collect/screens/settings.dart';
 import 'package:bhima_collect/services/db.dart';
+import 'package:bhima_collect/utilities/toast_bhima.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:date_format/date_format.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:getwidget/getwidget.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bhima_collect/services/connect.dart';
 import 'package:bhima_collect/utilities/util.dart';
+// ignore: depend_on_referenced_packages
 import "package:collection/collection.dart";
 
 class HomePage extends StatefulWidget {
-  const HomePage({Key? key}) : super(key: key);
+  const HomePage({super.key});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -24,23 +34,65 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   var connexion = Connect();
   var database = BhimaDatabase.open();
+  late StreamSubscription subscription;
   DateTime lastUpdate = DateTime.now();
   String _formattedLastUpdate = '';
   String _selectedDepotText = '';
+  String _selectDepotUuid = '';
   bool _isRecentSync = false;
-  bool _isSyncing = false;
+  bool _isLoading = false;
+  bool isDeviceConnected = false;
   String _serverUrl = '';
   String _username = '';
   String _password = '';
-  int _importedRecords = 0;
-  num _progress = 0;
+  String _token = '';
+  double _progress = 0.0;
   int _countSynced = 0;
   int _maxToSync = 0;
+  int _countSyncLoss = 0;
+  int _countSyncExit = 0;
+  int _maxToLoss = 0;
+  int _maxToExit = 0;
+  List<Depot> depots = [];
+  ConnectivityResult _connectionStatus = ConnectivityResult.none;
+  final Connectivity _connectivity = Connectivity();
+  late StreamSubscription<ConnectivityResult> _connectivitySubscription;
 
   @override
   void initState() {
     super.initState();
     _loadSavedPreferences();
+    initConnectivity();
+
+    _connectivitySubscription =
+        _connectivity.onConnectivityChanged.listen(_updateConnectionStatus);
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription.cancel();
+    super.dispose();
+  }
+
+  Future<void> initConnectivity() async {
+    late ConnectivityResult result;
+    try {
+      result = await _connectivity.checkConnectivity();
+    } on PlatformException catch (e) {
+      if (kDebugMode) print('Couldn\'t check connectivity status $e');
+      return;
+    }
+    if (!mounted) {
+      return Future.value(null);
+    }
+
+    return _updateConnectionStatus(result);
+  }
+
+  Future<void> _updateConnectionStatus(ConnectivityResult result) async {
+    setState(() {
+      _connectionStatus = result;
+    });
   }
 
   //Loading settings values on start
@@ -51,8 +103,9 @@ class _HomePageState extends State<HomePage> {
       _username = (prefs.getString('username') ?? '');
       _password = (prefs.getString('password') ?? '');
       _selectedDepotText = (prefs.getString('selected_depot_text') ?? '');
+      _selectDepotUuid = (prefs.getString('selected_depot_uuid') ?? '');
       _formattedLastUpdate = (prefs.getString('last_sync_date') ?? '');
-      _importedRecords = (prefs.getInt('last_sync_items') ?? 0);
+      // _importedRecords = (prefs.getInt('last_sync_items') ?? 0);
       _isRecentSync = (prefs.getInt('last_sync') ?? 0) == 0 ? false : true;
     });
   }
@@ -68,19 +121,33 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future serverConnection() async {
-    try {
-      // init connexion by getting the user token
-      await connexion.getToken(_serverUrl, _username, _password);
-    } catch (e) {}
+    if (_connectionStatus == ConnectivityResult.mobile ||
+        _connectionStatus == ConnectivityResult.wifi) {
+      try {
+        // init connexion by getting the user token
+        var token = await connexion.getToken(_serverUrl, _username, _password);
+        setState(() {
+          _token = token;
+        });
+      } catch (e) {
+        throw Exception(e);
+      }
+    } else {
+      throw ("Vous n'etes connecté à un réseau");
+    }
   }
 
   Future fetchLots() async {
     try {
+      // clean previous lots
+      Lot.clean(database);
+      // collect the lots by deposit
       /**
        * Include empty lots for having lots which are sent by not yet received
        */
-      const lotDataUrl = '/stock/lots/depots?includeEmptyLot=1';
-      List lotsRaw = await connexion.api(lotDataUrl);
+      String lotDataUrl =
+          '/stock/lots/depots?includeEmptyLot=0&fullList=1&depot_uuid=$_selectDepotUuid';
+      List lotsRaw = await connexion.api(lotDataUrl, _token);
 
       List<Lot> lots = lotsRaw.map((lot) {
         return Lot(
@@ -110,30 +177,55 @@ class _HomePageState extends State<HomePage> {
           entry_date: parseDate(lot['entry_date']),
         );
       }).toList();
-
-      // open the database
-      var database = BhimaDatabase.open();
-      // clean previous depots
-      Lot.clean(database);
       // write new entries
-      lots.forEach((lot) async {
-        await Lot.insertLot(database, lot);
-      });
+      await Lot.txInsertLot(database, lots);
 
-      // import into inventory_lot and inventory table
       await InventoryLot.import(database);
-
       setState(() {
-        _importedRecords = lots.length;
+        _progress += 0.1;
       });
     } catch (e) {
-      print(
-          'Error during fetch of lots : $e, $_serverUrl, $_username, $_password');
+      throw Exception(e);
+    }
+  }
+
+  Future fetchInventory() async {
+    try {
+      setState(() {
+        _progress += 0.1;
+      });
+      const inventoryUrl = '/inventory/metadata?is_asset=0';
+
+      List inventoryRaw = await connexion.api(inventoryUrl, _token);
+
+      List<Inventory> inventories = inventoryRaw.map((inventory) {
+        return Inventory(
+            uuid: inventory['uuid'],
+            code: inventory['code'],
+            group_name: inventory['groupName'],
+            is_asset: inventory['is_asset'],
+            label: inventory['label'],
+            manufacturer_brand: inventory['manufacturer_brand'],
+            manufacturer_model: inventory['manufacturer_model'],
+            type: inventory['type'],
+            unit: inventory['unit']);
+      }).toList();
+
+      await Inventory.clean(database);
+      await Inventory.txInsertInventory(database, inventories);
+      setState(() {
+        _progress += 0.1;
+      });
+    } catch (e) {
+      throw Exception(e);
     }
   }
 
   Future syncStockMovements() async {
     try {
+      setState((() {
+        _progress += 0.1;
+      }));
       const url = '/stock/lots/movements';
       List<StockMovement> movements =
           await StockMovement.stockMovements(database);
@@ -158,50 +250,76 @@ class _HomePageState extends State<HomePage> {
       var entryGrouped =
           entryMovement.groupListsBy((element) => element.movementUuid);
 
-      var exitGrouped =
-          exitMovement.groupListsBy((element) => element.movementUuid);
+      var exitConsumption =
+          exitMovement.where((elt) => elt.fluxId == 9).toList();
 
-      _maxToSync = entryGrouped.length + exitGrouped.length;
-      _countSynced = 0;
-      _progress = _maxToSync != 0 ? 0 : 100;
+      var exitLoss = exitMovement.where((elt) => elt.fluxId == 11).toList();
+
+      var exitGroupedLoss =
+          exitLoss.groupListsBy((element) => element.movementUuid);
+
+      var exitGroupedConsumption =
+          exitConsumption.groupListsBy((element) => element.movementUuid);
+
+      setState(() {
+        _maxToSync = entryGrouped.length;
+        _maxToExit = exitGroupedConsumption.length;
+        _maxToLoss = exitGroupedLoss.length;
+        _countSynced = 0;
+        _countSyncExit = 0;
+        _countSyncLoss = 0;
+      });
 
       // NOTE: Sync entries first before exits
 
       entryGrouped.forEach((key, value) async {
-        var result =
-            await connexion.post(url, {'lots': value, 'sync_mobile': 1});
+        var result = await connexion
+            .post(url, _token, {'lots': value, 'sync_mobile': 1});
 
         if (key != null && result != null && result['uuids'] != null) {
           // update the sync status for valid lots of the movements
           await StockMovement.updateSyncStatus(database, key, result['uuids']);
           setState(() {
             _countSynced++;
-            _progress = ((_countSynced / _maxToSync) * 100).round();
           });
         }
       });
+      setState(() {
+        _progress += 0.1;
+      });
 
-      // fetch fresh data from the server after entries
-      await fetchLots();
-
-      exitGrouped.forEach((key, value) async {
-        var result =
-            await connexion.post(url, {'lots': value, 'sync_mobile': 1});
+      exitGroupedConsumption.forEach((key, value) async {
+        var result = await connexion
+            .post(url, _token, {'lots': value, 'sync_mobile': 1});
 
         if (key != null && result != null && result['uuids'] != null) {
           // update the sync status for valid lots of the movements
           await StockMovement.updateSyncStatus(database, key, result['uuids']);
           setState(() {
-            _countSynced++;
-            _progress = ((_countSynced / _maxToSync) * 100).round();
+            _countSyncExit++;
           });
         }
       });
 
+      exitGroupedLoss.forEach((key, value) async {
+        var result = await connexion
+            .post(url, _token, {'lots': value, 'sync_mobile': 1});
+
+        if (key != null && result != null && result['uuids'] != null) {
+          // update the sync status for valid lots of the movements
+          await StockMovement.updateSyncStatus(database, key, result['uuids']);
+          setState(() {
+            _countSyncLoss++;
+          });
+        }
+      });
       // fetch fresh data from the server after exits
       await fetchLots();
+      setState(() {
+        _progress += 0.1;
+      });
     } catch (e) {
-      print(e);
+      throw Exception(e);
     }
   }
 
@@ -212,47 +330,59 @@ class _HomePageState extends State<HomePage> {
       List lots = await StockMovement.getLocalLots(database);
       var grouped = lots.groupListsBy((element) => element['movementUuid']);
       grouped.forEach((key, value) async {
-        await connexion.post(url, {'lots': value});
+        await connexion.post(url, _token, {'lots': value});
+      });
+      setState(() {
+        _progress += 0.1;
       });
     } catch (e) {
-      print(e);
+      throw Exception(e);
     }
   }
 
   Future syncBtnClicked() async {
-    if (_isSyncing) {
-      return null;
-    } else {
-      // sync data
-      try {
-        setState(() {
-          _isSyncing = true;
-        });
-
-        // set the connection to the server
-        await serverConnection();
-
+    // sync data
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      // set the connection to the server
+      await serverConnection();
+      setState(() {
+        _progress += 0.1;
+      });
+      await Future.wait([
         // send local lots
-        await syncLots();
-
+        syncLots(),
         // send local stock movements (not synced)
-        await syncStockMovements();
+        syncStockMovements(),
+        // fetch inventories
+        fetchInventory(),
+        _saveSyncInfo(_formattedLastUpdate, _countSynced, _maxToSync)
+      ]);
+      await fetchLots();
 
-        setState(() {
-          lastUpdate = DateTime.now();
-          _formattedLastUpdate = formatDate(
-              lastUpdate, [dd, '/', mm, '/', yyyy, '  ', HH, ':', nn]);
-          _isSyncing = false;
-          _isRecentSync = true;
-        });
+      setState(() {
+        lastUpdate = DateTime.now();
+        _formattedLastUpdate =
+            formatDate(lastUpdate, [dd, '/', mm, '/', yyyy, '  ', HH, ':', nn]);
+        _isLoading = false;
+        _isRecentSync = true;
+        _progress = 0.0;
+      });
 
-        await _saveSyncInfo(_formattedLastUpdate, _countSynced, _maxToSync);
-      } catch (e) {
-        setState(() {
-          _isSyncing = false;
-        });
-        print(e);
-      }
+      setState(() {
+        _progress = 0.0;
+      });
+      // ignore: use_build_context_synchronously
+      alertSuccess(context, 'Synchronisation des données réussie');
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _progress = 0.0;
+      });
+      // ignore: use_build_context_synchronously
+      alertError(context, e.toString());
     }
   }
 
@@ -261,12 +391,12 @@ class _HomePageState extends State<HomePage> {
     final ButtonStyle btnStyle = ElevatedButton.styleFrom(
       textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
       padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 20),
-      primary: Colors.green[700],
+      backgroundColor: Colors.green[700],
     );
     final ButtonStyle btnRedStyle = ElevatedButton.styleFrom(
       textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
       padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 20),
-      primary: Colors.red[700],
+      backgroundColor: Colors.red[700],
     );
 
     return Scaffold(
@@ -334,25 +464,6 @@ class _HomePageState extends State<HomePage> {
                       padding: const EdgeInsets.all(8.0),
                       child: ElevatedButton(
                         onPressed: () {
-                          Navigator.pushNamed(context, '/stock_entry').then(
-                              (value) => Provider.of<EntryMovement>(context,
-                                      listen: false)
-                                  .reset());
-                        },
-                        style: btnStyle,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const <Widget>[
-                            Icon(Icons.add),
-                            Text('Réception'),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: ElevatedButton(
-                        onPressed: () {
                           Navigator.pushNamed(context, '/stock_integration')
                               .then((value) => Provider.of<EntryMovement>(
                                       context,
@@ -360,9 +471,9 @@ class _HomePageState extends State<HomePage> {
                                   .reset());
                         },
                         style: btnStyle,
-                        child: Row(
+                        child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: const <Widget>[
+                          children: <Widget>[
                             Icon(Icons.add),
                             Text('Integration de stock'),
                           ],
@@ -376,9 +487,9 @@ class _HomePageState extends State<HomePage> {
                           Navigator.pushNamed(context, '/stock');
                         },
                         style: btnStyle,
-                        child: Row(
+                        child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: const <Widget>[
+                          children: <Widget>[
                             Text('Stock'),
                           ],
                         ),
@@ -394,9 +505,9 @@ class _HomePageState extends State<HomePage> {
                                   .reset());
                         },
                         style: btnStyle,
-                        child: Row(
+                        child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: const <Widget>[
+                          children: <Widget>[
                             Icon(Icons.people_alt_rounded),
                             Padding(
                               padding: EdgeInsets.symmetric(horizontal: 8),
@@ -409,12 +520,12 @@ class _HomePageState extends State<HomePage> {
                     Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: ElevatedButton(
-                        onPressed: syncBtnClicked,
+                        onPressed: _isLoading ? null : syncBtnClicked,
                         style: btnStyle,
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: <Widget>[
-                            _isSyncing
+                            _isLoading
                                 ? const CircularProgressIndicator(
                                     color: Colors.white,
                                     semanticsLabel: 'Chargement...',
@@ -434,9 +545,9 @@ class _HomePageState extends State<HomePage> {
                                   .reset());
                         },
                         style: btnRedStyle,
-                        child: Row(
+                        child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: const <Widget>[
+                          children: <Widget>[
                             Icon(Icons.delete_outline),
                             Text('Perte de stock'),
                           ],
@@ -446,16 +557,24 @@ class _HomePageState extends State<HomePage> {
                     Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: _progress > 0
-                          ? Column(
-                              children: <Widget>[
-                                LinearProgressIndicator(
-                                  value: _progress.toDouble(),
-                                  semanticsLabel: '$_progress %',
-                                ),
-                                Text('$_progress %')
-                              ],
+                          ? GFProgressBar(
+                              percentage: _progress,
+                              lineHeight: 20,
+                              alignment: MainAxisAlignment.spaceBetween,
+                              leading: const Icon(Icons.sentiment_dissatisfied,
+                                  color: GFColors.DANGER),
+                              trailing: const Icon(Icons.sentiment_satisfied,
+                                  color: GFColors.SUCCESS),
+                              backgroundColor: Colors.black26,
+                              progressBarColor: GFColors.INFO,
+                              child: Text(
+                                'Syncronisation en cours... ${(_progress * 100).round()}%',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                    fontSize: 14, color: Colors.white),
+                              ),
                             )
-                          : Row(),
+                          : const Row(),
                     ),
                     Padding(
                       padding: const EdgeInsets.all(8.0),
@@ -465,10 +584,13 @@ class _HomePageState extends State<HomePage> {
                                 const Text('Dernière synchronisation'),
                                 Text(_formattedLastUpdate),
                                 Text(
-                                    'Données synchronisées : $_countSynced / $_maxToSync'),
+                                    'Integration : $_countSynced / $_maxToSync'),
+                                Text(
+                                    'Consommation : $_countSyncExit / $_maxToExit'),
+                                Text('Pertes : $_countSyncLoss / $_maxToLoss'),
                               ],
                             )
-                          : Row(),
+                          : const Row(),
                     )
                   ],
                 ),

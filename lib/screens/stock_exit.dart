@@ -1,6 +1,4 @@
-import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/models/stock_movement.dart';
-import 'package:bhima_collect/providers/entry_movement.dart';
 import 'package:bhima_collect/providers/exit_movement.dart';
 import 'package:bhima_collect/services/db.dart';
 import 'package:bhima_collect/utilities/util.dart';
@@ -14,7 +12,7 @@ import 'package:uuid/uuid.dart';
 import 'package:darq/darq.dart';
 
 class StockExitPage extends StatefulWidget {
-  StockExitPage({Key? key}) : super(key: key);
+  const StockExitPage({super.key});
 
   @override
   State<StockExitPage> createState() => _StockExitPageState();
@@ -24,6 +22,7 @@ class _StockExitPageState extends State<StockExitPage> {
   var database = BhimaDatabase.open();
   final _uuid = const Uuid();
   final _formKey = GlobalKey<FormState>();
+  // ignore: non_constant_identifier_names
   final _STOCK_FROM_TO_PATIENT = 9;
   final PageController _controller = PageController(
     initialPage: 0,
@@ -36,6 +35,7 @@ class _StockExitPageState extends State<StockExitPage> {
   String _selectedDepotUuid = '';
   String _selectedDepotText = '';
   int? _userId;
+  // ignore: unused_field
   bool _savingSucceed = false;
 
   DateTime _selectedDate = DateTime.now();
@@ -181,6 +181,7 @@ class _StockExitPageState extends State<StockExitPage> {
 
   Widget inventoryTypeaheadField(int index) {
     final TextEditingController typeAheadController = TextEditingController();
+    // ignore: no_leading_underscores_for_local_identifiers
     Future<List> _loadInventories(String pattern) async {
       List currentInventories = await StockMovement.stockQuantity(database);
       return currentInventories
@@ -230,6 +231,7 @@ class _StockExitPageState extends State<StockExitPage> {
     final TextEditingController lotTypeAheadController =
         TextEditingController();
 
+    // ignore: no_leading_underscores_for_local_identifiers
     Future<List> _loadInventoryLots(String pattern) async {
       var inventoryUuid = Provider.of<ExitMovement>(context, listen: false)
           .getLotValue(index, 'inventory_uuid');
@@ -256,13 +258,16 @@ class _StockExitPageState extends State<StockExitPage> {
         return await _loadInventoryLots(pattern);
       },
       itemBuilder: (context, dynamic suggestion) {
-        bool isDateNull = suggestion['expiration_date'] == null ||
-            suggestion['expiration_date'] == 'null';
-        var formattedExpirationDate = !isDateNull
-            ? formatDate(DateTime.parse(suggestion['expiration_date']),
-                _customDateFormat)
-            : '-';
-        String exp = isDateNull ? '' : '/ Exp. $formattedExpirationDate';
+        dynamic rawExpirationDate;
+        if (suggestion['expiration_date'].runtimeType == String) {
+          rawExpirationDate = parseDate(suggestion['expiration_date']);
+        } else {
+          rawExpirationDate = suggestion['expiration_date'];
+        }
+        var formattedExpirationDate = rawExpirationDate != null
+            ? formatDate(rawExpirationDate, [MM, '-', yyyy])
+            : 'invalid date';
+        String exp = '/ Exp. $formattedExpirationDate';
         return Column(
           children: [
             ListTile(
@@ -292,6 +297,7 @@ class _StockExitPageState extends State<StockExitPage> {
   Widget stockExitStartPage() {
     String formattedSelectedDate = formatDate(_selectedDate, _customDateFormat);
 
+    // ignore: no_leading_underscores_for_local_identifiers
     Future _selectDate(BuildContext context) async {
       final DateTime? picked = await showDatePicker(
         context: context,
@@ -387,7 +393,8 @@ class _StockExitPageState extends State<StockExitPage> {
 
     Future batchInsertMovements(var lots) async {
       var movementUuid = _uuid.v4();
-      return lots.forEach((element) async {
+      List<StockMovement> movements = [];
+      lots.forEach((element) {
         if (element != null && element['lot_uuid'] != null) {
           var movement = StockMovement(
             uuid: _uuid.v4(),
@@ -407,9 +414,10 @@ class _StockExitPageState extends State<StockExitPage> {
             quantity: int.parse(element['quantity'] ?? 0),
             unitCost: element['unit_cost'].toDouble(),
           );
-          await StockMovement.insertMovement(database, movement);
+          movements.add(movement);
         }
       });
+      await StockMovement.txInsertMovement(database, movements);
     }
 
     Future<dynamic> save() {
@@ -426,7 +434,7 @@ class _StockExitPageState extends State<StockExitPage> {
         Provider.of<ExitMovement>(context, listen: false).reset();
 
         // back to home
-        Navigator.pushNamed(context, '/');
+        Navigator.pushNamed(context, '/home');
 
         setState(() {
           _savingSucceed = true;
@@ -459,7 +467,7 @@ class _StockExitPageState extends State<StockExitPage> {
                   trailing: Chip(label: Text(value['quantity'] ?? '')),
                 );
               } else {
-                return Row();
+                return const Row();
               }
             },
           )),
