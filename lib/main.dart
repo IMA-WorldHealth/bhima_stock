@@ -53,7 +53,7 @@ class _MyAppState extends State<MainScreen> {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // primarySwatch: Colors.blue,
+        colorSchemeSeed: Colors.blue,
         appBarTheme: AppBarTheme(
             backgroundColor: Colors.white,
             // This will be applied to the "back" icon

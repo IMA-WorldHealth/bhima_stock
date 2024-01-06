@@ -2,12 +2,11 @@ import 'dart:async';
 
 import 'package:bhima_collect/models/depot.dart';
 import 'package:bhima_collect/models/inventory.dart';
+import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:bhima_collect/services/connect.dart';
 import 'package:bhima_collect/services/db.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:getwidget/getwidget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bhima_collect/utilities/toast_bhima.dart';
@@ -27,72 +26,25 @@ class _SettingsPageState extends State<SettingsPage> {
   var txtUsername = TextEditingController();
   var txtPassword = TextEditingController();
   var database = BhimaDatabase.open();
+
   bool _isButtonDisabled = false;
   bool isDeviceConnected = false;
-
   String _serverUrl = '';
   String _username = '';
   String _password = '';
   String _token = '';
   double _progressValue = 0.0;
-  ConnectivityResult _connectionStatus = ConnectivityResult.none;
-  final Connectivity _connectivity = Connectivity();
-  late StreamSubscription<ConnectivityResult> _connectivitySubscription;
   List<Depot> depotList = [];
+
   @override
   void initState() {
     super.initState();
     _loadSettings();
-    initConnectivity();
-
-    _connectivitySubscription =
-        _connectivity.onConnectivityChanged.listen(_updateConnectionStatus);
   }
 
   @override
   void dispose() {
-    _connectivitySubscription.cancel();
     super.dispose();
-  }
-
-  Future<void> initConnectivity() async {
-    late ConnectivityResult result;
-    // Platform messages may fail, so we use a try/catch PlatformException.
-    try {
-      result = await _connectivity.checkConnectivity();
-    } on PlatformException catch (e) {
-      if (kDebugMode) print('Couldn\'t check connectivity status $e');
-      return;
-    }
-    if (!mounted) {
-      return Future.value(null);
-    }
-
-    return _updateConnectionStatus(result);
-  }
-
-  Future<void> _updateConnectionStatus(ConnectivityResult result) async {
-    setState(() {
-      _connectionStatus = result;
-    });
-  }
-
-  Future checkServerConnection() async {
-    if (_connectionStatus == ConnectivityResult.mobile ||
-        _connectionStatus == ConnectivityResult.wifi) {
-      try {
-        // init connexion by getting the user token
-        var token = await connexion.getToken(_serverUrl, _username, _password);
-        setState(() {
-          _token = token;
-          _progressValue += 0.1;
-        });
-      } catch (e) {
-        throw Exception(e);
-      }
-    } else {
-      throw ("Vous n'etes connecté à un réseau");
-    }
   }
 
   Future fetchInventory() async {
@@ -100,8 +52,8 @@ class _SettingsPageState extends State<SettingsPage> {
       setState(() {
         _progressValue += 0.1;
       });
-      const inventoryUrl = '/inventory/metadata?is_asset=0';
 
+      const inventoryUrl = '/inventory/metadata';
       List inventoryRaw = await connexion.api(inventoryUrl, _token);
 
       List<Inventory> inventories = inventoryRaw.map((inventory) {
@@ -129,53 +81,75 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future syncDepots() async {
     try {
-      // get all depots
       setState(() {
         _progressValue += 0.1;
       });
-      List depots = await connexion.api('/depots', _token);
       // get only depots of the given user
-      List userDepots =
-          await connexion.api('/users/${connexion.user['id']}/depots', _token);
+      List userDepots = await connexion.api(
+          '/users/${connexion.user['id']}/depots?details=1', _token);
 
-      List<Depot> userDepotList = depots.where((depot) {
-        return userDepots.contains(depot['uuid']);
-      }).map((depot) {
-        return Depot(uuid: depot['uuid'], text: depot['text']);
+      List<Depot> userDepotList = userDepots.map((depot) {
+        return Depot(uuid: depot['depot_uuid'], text: depot['text']);
       }).toList();
+
       setState(() {
         depotList = userDepotList;
       });
+
       // open the database
       var database = BhimaDatabase.open();
       // clean previous data
       Depot.clean(database);
       // write new fresh depots entries
       // insert new with transaction
-      await Depot.txInsertLot(database, userDepotList);
+      await Depot.txInsertDepots(database, userDepotList);
       setState(() {
         _progressValue += 0.1;
       });
     } catch (e) {
       if (kDebugMode) {
-        print('ERROR SYNC DEpot :  $e');
+        print('ERROR SYNC Depot :  $e');
       }
       throw Exception(e);
     }
   }
 
   Future submit() async {
+    bool isInternetAvailable = await InternetConnectionChecker().hasConnection;
+
+    if (!isInternetAvailable) {
+      // ignore: use_build_context_synchronously
+      return alertWarning(context, 'Pas de connexion Internet');
+    }
+
     if (_formKey.currentState!.validate()) {
+      try {
+        // init connexion by getting the user token
+        setState(() {
+          _isButtonDisabled = true;
+          _progressValue += 0.1;
+        });
+        var token = await connexion.getToken(_serverUrl, _username, _password);
+        setState(() {
+          _token = token;
+          _progressValue += 0.1;
+        });
+      } catch (e) {
+        setState(() {
+          _isButtonDisabled = false;
+          _progressValue = 0.0;
+          _token = '';
+        });
+        // ignore: use_build_context_synchronously
+        return alertError(context, "Echec d'authentification");
+      }
+
       try {
         setState(() {
           _isButtonDisabled = true;
           _progressValue += 0.1;
         });
 
-        await checkServerConnection();
-        setState(() {
-          _progressValue += 0.1;
-        });
         await Future.wait([
           // sync the users depots
           syncDepots(),
@@ -187,11 +161,15 @@ class _SettingsPageState extends State<SettingsPage> {
 
         setState(() {
           _isButtonDisabled = false;
-          _progressValue = 0.0;
+          _progressValue = 0.1;
         });
 
         // ignore: use_build_context_synchronously
-        alertSuccess(context, 'Synchronisation des données réussie');
+        alertSuccess(context, 'Connexion réussie');
+
+        setState(() {
+          _progressValue = 0.0;
+        });
       } catch (e) {
         setState(() {
           _isButtonDisabled = false;
@@ -199,7 +177,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _token = '';
         });
         // ignore: use_build_context_synchronously
-        alertError(context, 'Echec de synchronisation \n ${e.toString()}');
+        return alertError(context, 'Echec de synchronisation');
       }
     }
   }
@@ -325,7 +303,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: ElevatedButton(
+                child: FilledButton(
                   onPressed: _isButtonDisabled
                       ? null
                       : () async {
@@ -359,10 +337,6 @@ class _SettingsPageState extends State<SettingsPage> {
                             percentage: _progressValue,
                             lineHeight: 20,
                             alignment: MainAxisAlignment.spaceBetween,
-                            leading: const Icon(Icons.sentiment_dissatisfied,
-                                color: GFColors.DANGER),
-                            trailing: const Icon(Icons.sentiment_satisfied,
-                                color: GFColors.SUCCESS),
                             backgroundColor: Colors.black26,
                             progressBarColor: GFColors.INFO,
                             child: Text(

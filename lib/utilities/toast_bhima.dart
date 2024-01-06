@@ -48,6 +48,27 @@ alertError(BuildContext context, String msg) {
   ).show();
 }
 
+alertWarning(BuildContext context, String msg) {
+  Alert(
+    context: context,
+    type: AlertType.warning,
+    title: "Avertissement",
+    desc: msg,
+    closeFunction: () => Navigator.pop(context),
+    buttons: [
+      DialogButton(
+        onPressed: () => Navigator.pop(context),
+        color: Colors.orange,
+        radius: BorderRadius.circular(0.0),
+        child: const Text(
+          "Fermer",
+          style: TextStyle(color: Colors.white, fontSize: 20),
+        ),
+      ),
+    ],
+  ).show();
+}
+
 alertSuccess(BuildContext context, String msg) {
   Alert(
     context: context,

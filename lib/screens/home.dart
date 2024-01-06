@@ -9,13 +9,11 @@ import 'package:bhima_collect/providers/entry_movement.dart';
 import 'package:bhima_collect/providers/exit_movement.dart';
 import 'package:bhima_collect/screens/depot.dart';
 import 'package:bhima_collect/screens/settings.dart';
+import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:bhima_collect/services/db.dart';
 import 'package:bhima_collect/utilities/toast_bhima.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:date_format/date_format.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:getwidget/getwidget.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -54,45 +52,16 @@ class _HomePageState extends State<HomePage> {
   int _maxToLoss = 0;
   int _maxToExit = 0;
   List<Depot> depots = [];
-  ConnectivityResult _connectionStatus = ConnectivityResult.none;
-  final Connectivity _connectivity = Connectivity();
-  late StreamSubscription<ConnectivityResult> _connectivitySubscription;
 
   @override
   void initState() {
     super.initState();
     _loadSavedPreferences();
-    initConnectivity();
-
-    _connectivitySubscription =
-        _connectivity.onConnectivityChanged.listen(_updateConnectionStatus);
   }
 
   @override
   void dispose() {
-    _connectivitySubscription.cancel();
     super.dispose();
-  }
-
-  Future<void> initConnectivity() async {
-    late ConnectivityResult result;
-    try {
-      result = await _connectivity.checkConnectivity();
-    } on PlatformException catch (e) {
-      if (kDebugMode) print('Couldn\'t check connectivity status $e');
-      return;
-    }
-    if (!mounted) {
-      return Future.value(null);
-    }
-
-    return _updateConnectionStatus(result);
-  }
-
-  Future<void> _updateConnectionStatus(ConnectivityResult result) async {
-    setState(() {
-      _connectionStatus = result;
-    });
   }
 
   //Loading settings values on start
@@ -105,7 +74,6 @@ class _HomePageState extends State<HomePage> {
       _selectedDepotText = (prefs.getString('selected_depot_text') ?? '');
       _selectDepotUuid = (prefs.getString('selected_depot_uuid') ?? '');
       _formattedLastUpdate = (prefs.getString('last_sync_date') ?? '');
-      // _importedRecords = (prefs.getInt('last_sync_items') ?? 0);
       _isRecentSync = (prefs.getInt('last_sync') ?? 0) == 0 ? false : true;
     });
   }
@@ -118,23 +86,6 @@ class _HomePageState extends State<HomePage> {
     await prefs.setInt('items_synced', itemsSynced);
     await prefs.setInt('total_items_to_sync', totalItemsToSync);
     await prefs.setInt('last_sync', 1);
-  }
-
-  Future serverConnection() async {
-    if (_connectionStatus == ConnectivityResult.mobile ||
-        _connectionStatus == ConnectivityResult.wifi) {
-      try {
-        // init connexion by getting the user token
-        var token = await connexion.getToken(_serverUrl, _username, _password);
-        setState(() {
-          _token = token;
-        });
-      } catch (e) {
-        throw Exception(e);
-      }
-    } else {
-      throw ("Vous n'etes connecté à un réseau");
-    }
   }
 
   Future fetchLots() async {
@@ -341,16 +292,39 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future syncBtnClicked() async {
-    // sync data
-    setState(() {
-      _isLoading = true;
-    });
+    bool isInternetAvailable = await InternetConnectionChecker().hasConnection;
+
+    if (!isInternetAvailable) {
+      // ignore: use_build_context_synchronously
+      return alertWarning(context, 'Pas de connexion Internet');
+    }
+
     try {
-      // set the connection to the server
-      await serverConnection();
+      // init connexion by getting the user token
       setState(() {
+        _isLoading = true;
+        _progress = 0.1;
+      });
+      var token = await connexion.getToken(_serverUrl, _username, _password);
+      setState(() {
+        _token = token;
+        _progress = 0.1;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _progress = 0.0;
+      });
+      // ignore: use_build_context_synchronously
+      return alertError(context, "Echec d'authentification");
+    }
+
+    try {
+      setState(() {
+        _isLoading = true;
         _progress += 0.1;
       });
+
       await Future.wait([
         // send local lots
         syncLots(),
@@ -358,8 +332,10 @@ class _HomePageState extends State<HomePage> {
         syncStockMovements(),
         // fetch inventories
         fetchInventory(),
+        // update sync info
         _saveSyncInfo(_formattedLastUpdate, _countSynced, _maxToSync)
       ]);
+
       await fetchLots();
 
       setState(() {
@@ -368,21 +344,22 @@ class _HomePageState extends State<HomePage> {
             formatDate(lastUpdate, [dd, '/', mm, '/', yyyy, '  ', HH, ':', nn]);
         _isLoading = false;
         _isRecentSync = true;
-        _progress = 0.0;
+        _progress = 0.1;
       });
+
+      // ignore: use_build_context_synchronously
+      alertSuccess(context, 'Synchronisation des données réussie');
 
       setState(() {
         _progress = 0.0;
       });
-      // ignore: use_build_context_synchronously
-      alertSuccess(context, 'Synchronisation des données réussie');
     } catch (e) {
       setState(() {
         _isLoading = false;
         _progress = 0.0;
       });
       // ignore: use_build_context_synchronously
-      alertError(context, e.toString());
+      alertError(context, "Echec de synchronisation");
     }
   }
 
@@ -392,11 +369,13 @@ class _HomePageState extends State<HomePage> {
       textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
       padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 20),
       backgroundColor: Colors.green[700],
+      foregroundColor: Colors.white,
     );
     final ButtonStyle btnRedStyle = ElevatedButton.styleFrom(
       textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
       padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 20),
       backgroundColor: Colors.red[700],
+      foregroundColor: Colors.white,
     );
 
     return Scaffold(
@@ -561,10 +540,6 @@ class _HomePageState extends State<HomePage> {
                               percentage: _progress,
                               lineHeight: 20,
                               alignment: MainAxisAlignment.spaceBetween,
-                              leading: const Icon(Icons.sentiment_dissatisfied,
-                                  color: GFColors.DANGER),
-                              trailing: const Icon(Icons.sentiment_satisfied,
-                                  color: GFColors.SUCCESS),
                               backgroundColor: Colors.black26,
                               progressBarColor: GFColors.INFO,
                               child: Text(
@@ -583,11 +558,6 @@ class _HomePageState extends State<HomePage> {
                               children: <Widget>[
                                 const Text('Dernière synchronisation'),
                                 Text(_formattedLastUpdate),
-                                Text(
-                                    'Integration : $_countSynced / $_maxToSync'),
-                                Text(
-                                    'Consommation : $_countSyncExit / $_maxToExit'),
-                                Text('Pertes : $_countSyncLoss / $_maxToLoss'),
                               ],
                             )
                           : const Row(),

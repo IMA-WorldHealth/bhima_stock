@@ -7,12 +7,15 @@ import 'package:bhima_collect/components/search_bhima.dart';
 import 'package:bhima_collect/models/depot.dart';
 import 'package:bhima_collect/models/inventory_lot.dart';
 import 'package:bhima_collect/models/lot.dart';
+import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:bhima_collect/services/db.dart';
 import 'package:bhima_collect/services/connect.dart';
 import 'package:bhima_collect/utilities/toast_bhima.dart';
 import 'package:bhima_collect/utilities/util.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ConfigureDepotPage extends StatefulWidget {
@@ -95,6 +98,12 @@ class _ConfigureDepotPageState extends State<ConfigureDepotPage> {
 
   // handle change on option choice
   Future<void> _onChanged(dynamic val) async {
+    bool isInternetAvailable = await InternetConnectionChecker().hasConnection;
+
+    if (!isInternetAvailable) {
+      return alertWarning(context, 'Pas de connexion Internet');
+    }
+
     try {
       setState(() {
         isLoading = true;
@@ -115,7 +124,8 @@ class _ConfigureDepotPageState extends State<ConfigureDepotPage> {
       ]);
       alertSuccess(context, 'Chargement des lots reussi!');
     } catch (e) {
-      alertError(context, e.toString());
+      alertError(
+          context, 'Une erreur est survenue lors du chargement des lots');
     }
   }
 
