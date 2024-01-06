@@ -83,7 +83,8 @@ class Depot {
   }
 
   // Define a function that insert the array depots into database with transaction
-  static Future<void> txInsertLot(dynamic database, List<Depot> depots) async {
+  static Future<void> txInsertDepots(
+      dynamic database, List<Depot> depots) async {
     final db = await database;
     await db.transaction((txn) async {
       final batch = txn.batch();
