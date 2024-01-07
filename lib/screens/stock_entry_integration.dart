@@ -129,6 +129,7 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
     );
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: const Text('Integration de stock'),
         leading: Builder(

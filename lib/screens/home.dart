@@ -558,6 +558,11 @@ class _HomePageState extends State<HomePage> {
                               children: <Widget>[
                                 const Text('Dernière synchronisation'),
                                 Text(_formattedLastUpdate),
+                                Text(
+                                    'Integration : $_countSynced / $_maxToSync'),
+                                Text(
+                                    'Consommation : $_countSyncExit / $_maxToExit'),
+                                Text('Pertes : $_countSyncLoss / $_maxToLoss'),
                               ],
                             )
                           : const Row(),
