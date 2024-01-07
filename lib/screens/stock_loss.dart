@@ -128,6 +128,7 @@ class _StockLossPageState extends State<StockLossPage> {
     );
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: const Text('Perte de stock'),
         leading: Builder(

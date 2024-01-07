@@ -342,16 +342,17 @@ class _HomePageState extends State<HomePage> {
         lastUpdate = DateTime.now();
         _formattedLastUpdate =
             formatDate(lastUpdate, [dd, '/', mm, '/', yyyy, '  ', HH, ':', nn]);
-        _isLoading = false;
-        _isRecentSync = true;
-        _progress = 0.1;
+        _progress = 0.0;
       });
 
+      await syncStockMovements();
       // ignore: use_build_context_synchronously
       alertSuccess(context, 'Synchronisation des données réussie');
 
       setState(() {
         _progress = 0.0;
+        _isLoading = false;
+        _isRecentSync = true;
       });
     } catch (e) {
       setState(() {

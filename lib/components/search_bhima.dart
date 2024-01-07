@@ -25,6 +25,7 @@ class SearchBhima extends StatelessWidget {
         onChanged: onSearch,
         decoration: InputDecoration(
             hintText: hintText,
+            hintStyle: const TextStyle(fontSize: 13),
             suffixIcon: IconButton(
               icon: const Icon(
                 Icons.clear,

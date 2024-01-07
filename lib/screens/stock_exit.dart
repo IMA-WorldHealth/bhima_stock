@@ -130,6 +130,7 @@ class _StockExitPageState extends State<StockExitPage> {
     );
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: const Text('Sortie de stock'),
         leading: Builder(

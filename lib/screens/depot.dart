@@ -12,7 +12,6 @@ import 'package:bhima_collect/services/db.dart';
 import 'package:bhima_collect/services/connect.dart';
 import 'package:bhima_collect/utilities/toast_bhima.dart';
 import 'package:bhima_collect/utilities/util.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

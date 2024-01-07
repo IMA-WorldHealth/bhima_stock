@@ -85,12 +85,11 @@ class _StockListPageState extends State<StockListPage> {
                 padding: const EdgeInsets.all(0.0),
                 child: CardBhima(
                     width: screenWidth,
-                    height: screenHeight / 6.1,
+                    height: screenHeight / 6.2,
                     borderOnForeground: false,
                     elevation: 2,
                     clipBehavior: Clip.hardEdge,
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Padding(
@@ -100,7 +99,7 @@ class _StockListPageState extends State<StockListPage> {
                               style: TextStyle(
                                   fontSize: 15,
                                   color: Colors.blue[700],
-                                  overflow: TextOverflow.visible),
+                                  overflow: TextOverflow.ellipsis),
                             )),
                         SearchBhima(
                           clear: clearText,
