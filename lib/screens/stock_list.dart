@@ -99,6 +99,7 @@ class _StockListPageState extends State<StockListPage> {
                               style: TextStyle(
                                   fontSize: 15,
                                   color: Colors.blue[700],
+                                  fontWeight: FontWeight.bold,
                                   overflow: TextOverflow.ellipsis),
                             )),
                         SearchBhima(
