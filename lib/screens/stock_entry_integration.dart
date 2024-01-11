@@ -240,7 +240,7 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
         context: context,
         initialDate: _selectedDate, // Refer step 1
         firstDate: DateTime(2000),
-        lastDate: DateTime(2030),
+        lastDate: DateTime(2050),
       );
       if (picked != null && picked != _selectedDate) {
         _selectedDate = picked;
@@ -300,7 +300,7 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
         context: context,
         initialDate: DateTime.now(),
         firstDate: DateTime(2000),
-        lastDate: DateTime(2030),
+        lastDate: DateTime(2050),
       );
       if (picked != null && picked.compareTo(DateTime.now()) > 0) {
         // be sure the picked date is in the future

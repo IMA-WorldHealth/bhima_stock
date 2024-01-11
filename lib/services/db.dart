@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:flutter/widgets.dart';
@@ -16,8 +17,9 @@ class BhimaDatabase {
       // When the database is first created, create a table to store depots.
       onCreate: (db, version) async {
         String dbPath = join(await getDatabasesPath(), 'bhima.db');
-        print('DB Location : $dbPath');
-
+        if (kDebugMode) {
+          print('DB Location : $dbPath');
+        }
         // Run the CREATE TABLE statement on the database.
         await db.execute(
           'CREATE TABLE depot(uuid TEXT PRIMARY KEY, "text" TEXT)',

@@ -47,10 +47,6 @@ class _HomePageState extends State<HomePage> {
   double _progress = 0.0;
   int _countSynced = 0;
   int _maxToSync = 0;
-  int _countSyncLoss = 0;
-  int _countSyncExit = 0;
-  int _maxToLoss = 0;
-  int _maxToExit = 0;
   List<Depot> depots = [];
 
   @override
@@ -145,7 +141,7 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         _progress += 0.1;
       });
-      const inventoryUrl = '/inventory/metadata?is_asset=0';
+      const inventoryUrl = '/inventory/metadata';
 
       List inventoryRaw = await connexion.api(inventoryUrl, _token);
 
@@ -174,9 +170,6 @@ class _HomePageState extends State<HomePage> {
 
   Future syncStockMovements() async {
     try {
-      setState((() {
-        _progress += 0.1;
-      }));
       const url = '/stock/lots/movements';
       List<StockMovement> movements =
           await StockMovement.stockMovements(database);
@@ -185,48 +178,11 @@ class _HomePageState extends State<HomePage> {
           .where((element) => element.isSync == 0 || element.isSync == null)
           .toList();
 
-      var groupedByIsExit = lots.groupListsBy((element) => element.isExit);
+      var lotMovements = lots.groupListsBy((element) => element.movementUuid);
 
-      List<StockMovement> exitMovement = [];
-      List<StockMovement> entryMovement = [];
-
-      groupedByIsExit.forEach((key, value) {
-        if (key == 1) {
-          exitMovement = value;
-        } else {
-          entryMovement = value;
-        }
-      });
-
-      var entryGrouped =
-          entryMovement.groupListsBy((element) => element.movementUuid);
-
-      var exitConsumption =
-          exitMovement.where((elt) => elt.fluxId == 9).toList();
-
-      var exitLoss = exitMovement.where((elt) => elt.fluxId == 11).toList();
-
-      var exitGroupedLoss =
-          exitLoss.groupListsBy((element) => element.movementUuid);
-
-      var exitGroupedConsumption =
-          exitConsumption.groupListsBy((element) => element.movementUuid);
-
-      setState(() {
-        _maxToSync = entryGrouped.length;
-        _maxToExit = exitGroupedConsumption.length;
-        _maxToLoss = exitGroupedLoss.length;
-        _countSynced = 0;
-        _countSyncExit = 0;
-        _countSyncLoss = 0;
-      });
-
-      // NOTE: Sync entries first before exits
-
-      entryGrouped.forEach((key, value) async {
+      lotMovements.forEach((key, value) async {
         var result = await connexion
             .post(url, _token, {'lots': value, 'sync_mobile': 1});
-
         if (key != null && result != null && result['uuids'] != null) {
           // update the sync status for valid lots of the movements
           await StockMovement.updateSyncStatus(database, key, result['uuids']);
@@ -235,42 +191,14 @@ class _HomePageState extends State<HomePage> {
           });
         }
       });
-      setState(() {
-        _progress += 0.1;
-      });
 
-      exitGroupedConsumption.forEach((key, value) async {
-        var result = await connexion
-            .post(url, _token, {'lots': value, 'sync_mobile': 1});
-
-        if (key != null && result != null && result['uuids'] != null) {
-          // update the sync status for valid lots of the movements
-          await StockMovement.updateSyncStatus(database, key, result['uuids']);
-          setState(() {
-            _countSyncExit++;
-          });
-        }
-      });
-
-      exitGroupedLoss.forEach((key, value) async {
-        var result = await connexion
-            .post(url, _token, {'lots': value, 'sync_mobile': 1});
-
-        if (key != null && result != null && result['uuids'] != null) {
-          // update the sync status for valid lots of the movements
-          await StockMovement.updateSyncStatus(database, key, result['uuids']);
-          setState(() {
-            _countSyncLoss++;
-          });
-        }
-      });
-      // fetch fresh data from the server after exits
+      // fetch fresh data from the server after movements
       await fetchLots();
       setState(() {
         _progress += 0.1;
       });
     } catch (e) {
-      throw Exception(e);
+      rethrow;
     }
   }
 
@@ -287,7 +215,7 @@ class _HomePageState extends State<HomePage> {
         _progress += 0.1;
       });
     } catch (e) {
-      throw Exception(e);
+      rethrow;
     }
   }
 
@@ -300,11 +228,10 @@ class _HomePageState extends State<HomePage> {
     }
 
     try {
-      // init connexion by getting the user token
       setState(() {
         _isLoading = true;
-        _progress = 0.1;
       });
+      // init connexion by getting the user token
       var token = await connexion.getToken(_serverUrl, _username, _password);
       setState(() {
         _token = token;
@@ -318,16 +245,10 @@ class _HomePageState extends State<HomePage> {
       // ignore: use_build_context_synchronously
       return alertError(context, "Echec d'authentification");
     }
-
     try {
-      setState(() {
-        _isLoading = true;
-        _progress += 0.1;
-      });
-
+      // send local lots
+      await syncLots();
       await Future.wait([
-        // send local lots
-        syncLots(),
         // send local stock movements (not synced)
         syncStockMovements(),
         // fetch inventories
@@ -342,7 +263,6 @@ class _HomePageState extends State<HomePage> {
         lastUpdate = DateTime.now();
         _formattedLastUpdate =
             formatDate(lastUpdate, [dd, '/', mm, '/', yyyy, '  ', HH, ':', nn]);
-        _progress = 0.0;
       });
 
       await syncStockMovements();

@@ -150,11 +150,11 @@ class _SettingsPageState extends State<SettingsPage> {
           _progressValue += 0.1;
         });
 
+        // fetch inventory
+        await fetchInventory();
         await Future.wait([
           // sync the users depots
           syncDepots(),
-          // fetch inventory
-          fetchInventory(),
           // save settings as preferences
           _saveSettings(),
         ]);

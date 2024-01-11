@@ -304,7 +304,7 @@ class _StockExitPageState extends State<StockExitPage> {
         context: context,
         initialDate: _selectedDate, // Refer step 1
         firstDate: DateTime(2000),
-        lastDate: DateTime(2030),
+        lastDate: DateTime(2050),
       );
       if (picked != null && picked != _selectedDate) {
         setState(() {
