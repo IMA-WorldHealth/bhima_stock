@@ -9,6 +9,7 @@ import 'package:bhima_collect/providers/entry_movement.dart';
 import 'package:bhima_collect/providers/exit_movement.dart';
 import 'package:bhima_collect/screens/depot.dart';
 import 'package:bhima_collect/screens/settings.dart';
+import 'package:flutter/foundation.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:bhima_collect/services/db.dart';
 import 'package:bhima_collect/utilities/toast_bhima.dart';
@@ -168,7 +169,7 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future syncStockMovements() async {
+  Future syncMovementEntries() async {
     try {
       const url = '/stock/lots/movements';
       List<StockMovement> movements =
@@ -177,10 +178,21 @@ class _HomePageState extends State<HomePage> {
       var lots = movements
           .where((element) => element.isSync == 0 || element.isSync == null)
           .toList();
+      var groupedByIsExit = lots.groupListsBy((element) => element.isExit);
 
-      var lotMovements = lots.groupListsBy((element) => element.movementUuid);
+      // List<StockMovement> exitMovement = [];
+      List<StockMovement> entryMovement = [];
 
-      lotMovements.forEach((key, value) async {
+      groupedByIsExit.forEach((key, value) {
+        if (key != 1) {
+          entryMovement = value;
+        }
+      });
+
+      var entryGrouped =
+          entryMovement.groupListsBy((element) => element.movementUuid);
+
+      entryGrouped.forEach((key, value) async {
         var result = await connexion
             .post(url, _token, {'lots': value, 'sync_mobile': 1});
         if (key != null && result != null && result['uuids'] != null) {
@@ -191,13 +203,61 @@ class _HomePageState extends State<HomePage> {
           });
         }
       });
-
       // fetch fresh data from the server after movements
       await fetchLots();
       setState(() {
         _progress += 0.1;
       });
     } catch (e) {
+      if (kDebugMode) {
+        print('ERROR ::: $e');
+      }
+      rethrow;
+    }
+  }
+
+  Future syncStockMovementExits() async {
+    try {
+      const url = '/stock/lots/movements';
+      List<StockMovement> movements =
+          await StockMovement.stockMovements(database);
+
+      var lots = movements
+          .where((element) => element.isSync == 0 || element.isSync == null)
+          .toList();
+      var groupedByIsExit = lots.groupListsBy((element) => element.isExit);
+
+      List<StockMovement> exitMovement = [];
+
+      groupedByIsExit.forEach((key, value) {
+        if (key == 1) {
+          exitMovement = value;
+        }
+      });
+
+      var exitGrouped =
+          exitMovement.groupListsBy((element) => element.movementUuid);
+
+      exitGrouped.forEach((key, value) async {
+        var result = await connexion
+            .post(url, _token, {'lots': value, 'sync_mobile': 1});
+        if (key != null && result != null && result['uuids'] != null) {
+          // update the sync status for valid lots of the movements
+          await StockMovement.updateSyncStatus(database, key, result['uuids']);
+          setState(() {
+            _countSynced++;
+          });
+        }
+      });
+      // fetch fresh data from the server after movements
+      await fetchLots();
+      setState(() {
+        _progress += 0.1;
+      });
+    } catch (e) {
+      if (kDebugMode) {
+        print('ERROR ::: $e');
+      }
       rethrow;
     }
   }
@@ -245,43 +305,43 @@ class _HomePageState extends State<HomePage> {
       // ignore: use_build_context_synchronously
       return alertError(context, "Echec d'authentification");
     }
-    try {
-      // send local lots
-      await syncLots();
-      await Future.wait([
-        // send local stock movements (not synced)
-        syncStockMovements(),
-        // fetch inventories
-        fetchInventory(),
-        // update sync info
-        _saveSyncInfo(_formattedLastUpdate, _countSynced, _maxToSync)
-      ]);
 
-      await fetchLots();
+    syncLots()
+        .then((_) => syncMovementEntries())
+        .then((_) => syncStockMovementExits())
+        .then((_) => syncStockMovementExits())
+        .then((_) => fetchInventory())
+        .then((_) => {
+              _saveSyncInfo(_formattedLastUpdate, _countSynced, _maxToSync),
 
-      setState(() {
-        lastUpdate = DateTime.now();
-        _formattedLastUpdate =
-            formatDate(lastUpdate, [dd, '/', mm, '/', yyyy, '  ', HH, ':', nn]);
-      });
+              setState(() {
+                lastUpdate = DateTime.now();
+                _formattedLastUpdate = formatDate(
+                    lastUpdate, [dd, '/', mm, '/', yyyy, '  ', HH, ':', nn]);
+              }),
 
-      await syncStockMovements();
-      // ignore: use_build_context_synchronously
-      alertSuccess(context, 'Synchronisation des données réussie');
+              // await syncStockMovements();
+              // ignore: use_build_context_synchronously
+              alertSuccess(context, 'Synchronisation des données réussie'),
 
-      setState(() {
-        _progress = 0.0;
-        _isLoading = false;
-        _isRecentSync = true;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _progress = 0.0;
-      });
-      // ignore: use_build_context_synchronously
-      alertError(context, "Echec de synchronisation");
+              setState(() {
+                _progress = 0.0;
+                _isLoading = false;
+                _isRecentSync = true;
+              })
+            })
+        .catchError(onError);
+  }
+
+  void onError(e) {
+    if (kDebugMode) {
+      print('ERROR::SYNCHRONISATION $e');
     }
+    setState(() {
+      _isLoading = false;
+      _progress = 0.0;
+    });
+    alertError(context, "Echec de synchronisation");
   }
 
   @override
