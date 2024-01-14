@@ -216,7 +216,7 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future syncStockMovementExists() async {
+  Future syncStockMovementExits() async {
     try {
       const url = '/stock/lots/movements';
       List<StockMovement> movements =
@@ -308,8 +308,8 @@ class _HomePageState extends State<HomePage> {
 
     syncLots()
         .then((_) => syncMovementEntries())
-        .then((_) => syncStockMovementExists())
-        .then((_) => syncStockMovementExists())
+        .then((_) => syncStockMovementExits())
+        .then((_) => syncStockMovementExits())
         .then((_) => fetchInventory())
         .then((_) => {
               _saveSyncInfo(_formattedLastUpdate, _countSynced, _maxToSync),
