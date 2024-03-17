@@ -3,6 +3,7 @@ import 'package:bhima_collect/models/inventory_lot.dart';
 import 'package:bhima_collect/utilities/util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
@@ -39,7 +40,7 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
   // bool _savingSucceed = false;
 
   DateTime _selectedDate = DateTime.now();
-  final _customDateFormat = [dd, ' ', MM, ' ', yyyy];
+  var formatter = DateFormat.yMMMMd('fr_FR');
   static const _kDuration = Duration(milliseconds: 300);
   static const _kCurve = Curves.ease;
 
@@ -233,18 +234,18 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
   }
 
   Widget stockEntryStartPage() {
-    String formattedSelectedDate = formatDate(_selectedDate, _customDateFormat);
+    String formattedSelectedDate = formatter.format(_selectedDate);
 
     Future selectDate(BuildContext context) async {
       final DateTime? picked = await showDatePicker(
-        context: context,
-        initialDate: _selectedDate, // Refer step 1
-        firstDate: DateTime(2000),
-        lastDate: DateTime(2050),
-      );
+          context: context,
+          initialDate: _selectedDate, // Refer step 1
+          firstDate: DateTime(2000),
+          lastDate: DateTime(2050),
+          locale: const Locale('fr', 'FR'));
       if (picked != null && picked != _selectedDate) {
         _selectedDate = picked;
-        formattedSelectedDate = formatDate(_selectedDate, _customDateFormat);
+        formattedSelectedDate = formatter.format(_selectedDate);
         _txtDate.text = formattedSelectedDate;
         // ignore: use_build_context_synchronously
         Provider.of<EntryMovement>(context, listen: false).setDate =
@@ -297,16 +298,15 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
 
     Future selectExpirationDate(BuildContext context) async {
       final DateTime? picked = await showDatePicker(
-        context: context,
-        initialDate: DateTime.now(),
-        firstDate: DateTime(2000),
-        lastDate: DateTime(2050),
-      );
+          context: context,
+          initialDate: DateTime.now(),
+          firstDate: DateTime(2000),
+          lastDate: DateTime(2050),
+          locale: const Locale('fr', 'FR'));
       if (picked != null && picked.compareTo(DateTime.now()) > 0) {
         // be sure the picked date is in the future
         expirationDate = picked;
-        var hrFormattedExpirationDate =
-            formatDate(expirationDate, _customDateFormat);
+        var hrFormattedExpirationDate = formatter.format(expirationDate);
         txtExpirationDate.text = hrFormattedExpirationDate;
         // ignore: use_build_context_synchronously
         Provider.of<EntryMovement>(context, listen: false)
@@ -365,7 +365,7 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
             },
             controller: txtUnitCost,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [DecimalTextInputFormatter(decimalRange: 2)]),
+            inputFormatters: [DecimalTextInputFormatter(decimalRange: 8)]),
         TextFormField(
           decoration: const InputDecoration(
             border: UnderlineInputBorder(),
@@ -406,6 +406,7 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
 
       lots.forEach((element) {
         if (element != null && element['lot_uuid'] != null) {
+          String uniCost = element['unit_cost'].toString();
           var lot = Lot(
             uuid: element['lot_uuid'],
             label: element['lot_label'],
@@ -423,7 +424,8 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
             reference_number: '',
             manufacturer_brand: element['manufacturer_brand'],
             manufacturer_model: element['manufacturer_model'],
-            unit_cost: double.parse(element['unit_cost']),
+            unit_cost: double.parse(
+                uniCost.contains(',') ? uniCost.replaceAll(',', '.') : uniCost),
             quantity: 0, // previous quantity set to zero
             avg_consumption: 0,
             exhausted: false,
@@ -447,7 +449,8 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
             date: date,
             description: 'INTEGRATION',
             quantity: int.parse(element['quantity']),
-            unitCost: double.parse(element['unit_cost']),
+            unitCost: double.parse(
+                uniCost.contains(',') ? uniCost.replaceAll(',', '.') : uniCost),
           );
           batch.add(lot);
           movements.add(movement);
@@ -492,7 +495,7 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 8, bottom: 0),
-            child: Text('Date: ${formatDate(date, _customDateFormat)}'),
+            child: Text('Date: ${formatter.format(date)}'),
           ),
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
@@ -513,9 +516,9 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
                 }
 
                 dynamic expirationDate = rawExpirationDate != null
-                    ? formatDate(rawExpirationDate, _customDateFormat)
+                    ? formatter.format(rawExpirationDate)
                     : '-';
-
+                var unitCost = value['unit_cost'] ?? 0;
                 return ListTile(
                   title: Text(value['inventory_text'] ?? ''),
                   subtitle: Column(
@@ -523,7 +526,7 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
                     children: [
                       Text(value['lot_label'] ?? ''),
                       Text('Expiration : $expirationDate'),
-                      Text('Coût unitaire : ${value['unit_cost'] ?? 0}'),
+                      Text('Coût unitaire : $unitCost'),
                     ],
                   ),
                   trailing: Chip(label: Text(value['quantity'] ?? '0')),

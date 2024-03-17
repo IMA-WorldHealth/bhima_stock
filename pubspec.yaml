@@ -3,7 +3,7 @@ description: A BHIMA mobile application for handling stock offline
 
 publish_to: 'none' 
 
-version: 1.0.1+8
+version: 1.0.1+9
 
 environment:
   sdk: ">=2.17.0 <3.0.0"
@@ -31,6 +31,10 @@ dependencies:
   flutter_toastify: ^1.0.4
   rflutter_alert: ^2.0.7
   internet_connection_checker: ^1.0.0+1
+  money_formatter: ^0.0.5
+  flutter_localizations:
+    sdk: flutter
+  intl: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

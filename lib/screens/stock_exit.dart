@@ -5,6 +5,7 @@ import 'package:bhima_collect/utilities/util.dart';
 import 'package:date_format/date_format.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
@@ -32,6 +33,7 @@ class _StockExitPageState extends State<StockExitPage> {
   final TextEditingController _txtReference = TextEditingController();
   final TextEditingController _txtQuantity = TextEditingController();
 
+  var formatter = DateFormat.yMMMMd('fr_FR');
   String _selectedDepotUuid = '';
   String _selectedDepotText = '';
   int? _userId;
@@ -39,7 +41,6 @@ class _StockExitPageState extends State<StockExitPage> {
   bool _savingSucceed = false;
 
   DateTime _selectedDate = DateTime.now();
-  final _customDateFormat = [dd, ' ', MM, ' ', yyyy];
   static const _kDuration = Duration(milliseconds: 300);
   static const _kCurve = Curves.ease;
 
@@ -266,7 +267,7 @@ class _StockExitPageState extends State<StockExitPage> {
           rawExpirationDate = suggestion['expiration_date'];
         }
         var formattedExpirationDate = rawExpirationDate != null
-            ? formatDate(rawExpirationDate, [MM, '-', yyyy])
+            ? formatter.format(rawExpirationDate)
             : 'invalid date';
         String exp = '/ Exp. $formattedExpirationDate';
         return Column(
@@ -296,20 +297,20 @@ class _StockExitPageState extends State<StockExitPage> {
   }
 
   Widget stockExitStartPage() {
-    String formattedSelectedDate = formatDate(_selectedDate, _customDateFormat);
+    String formattedSelectedDate = formatter.format(_selectedDate);
 
     // ignore: no_leading_underscores_for_local_identifiers
     Future _selectDate(BuildContext context) async {
       final DateTime? picked = await showDatePicker(
-        context: context,
-        initialDate: _selectedDate, // Refer step 1
-        firstDate: DateTime(2000),
-        lastDate: DateTime(2050),
-      );
+          context: context,
+          initialDate: _selectedDate, // Refer step 1
+          firstDate: DateTime(2000),
+          lastDate: DateTime(2050),
+          locale: const Locale('fr', 'FR'));
       if (picked != null && picked != _selectedDate) {
         setState(() {
           _selectedDate = picked;
-          formattedSelectedDate = formatDate(_selectedDate, _customDateFormat);
+          formattedSelectedDate = formatter.format(_selectedDate);
         });
       }
     }
@@ -450,7 +451,7 @@ class _StockExitPageState extends State<StockExitPage> {
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 8, bottom: 0),
-            child: Text('Date: ${formatDate(date, _customDateFormat)}'),
+            child: Text('Date: ${formatter.format(date)}'),
           ),
           Padding(
             padding: const EdgeInsets.only(bottom: 8),

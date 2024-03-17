@@ -4,8 +4,9 @@ import 'package:bhima_collect/models/stock_movement.dart';
 import 'package:bhima_collect/services/db.dart';
 import 'package:bhima_collect/utilities/util.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:date_format/date_format.dart';
+import 'package:intl/intl.dart' show toBeginningOfSentenceCase;
 
 class StockListPage extends StatefulWidget {
   const StockListPage({super.key});
@@ -20,6 +21,7 @@ class _StockListPageState extends State<StockListPage> {
   String _selectedDepotText = '';
   String _searchText = '';
   final TextEditingController _searchController = TextEditingController();
+  var formatter = DateFormat.yMMMM('fr_FR');
 
   @override
   void initState() {
@@ -156,7 +158,13 @@ class _StockListPageState extends State<StockListPage> {
                 children: [
                   ListTile(
                     title: Text('${values[index]['text']}'),
-                    subtitle: Text('Code: ${values[index]['code']}'),
+                    subtitle: Column(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Code: ${values[index]['code']}'),
+                      ],
+                    ),
                     trailing: Chip(
                       backgroundColor: Colors.green[200],
                       label: Text('Qty: ${values[index]['quantity']}'),
@@ -202,7 +210,7 @@ class _StockListPageState extends State<StockListPage> {
       rawExpirationDate = value['expiration_date'];
     }
     dynamic expirationDate = rawExpirationDate != null
-        ? formatDate(rawExpirationDate, [MM, '-', yyyy])
+        ? toBeginningOfSentenceCase(formatter.format(rawExpirationDate))
         : null;
     return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
