@@ -171,6 +171,9 @@ class _SettingsPageState extends State<SettingsPage> {
           _progressValue = 0.0;
         });
       } catch (e) {
+        if (kDebugMode) {
+          print('ERROR SYNC Inventory :  $e');
+        }
         setState(() {
           _isButtonDisabled = false;
           _progressValue = 0.0;

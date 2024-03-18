@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:uuid/uuid.dart';
 import 'package:darq/darq.dart';
+import 'package:intl/intl.dart';
 
 class StockLossPage extends StatefulWidget {
   const StockLossPage({super.key});
@@ -31,13 +32,13 @@ class _StockLossPageState extends State<StockLossPage> {
   final TextEditingController _txtDescription = TextEditingController();
   final TextEditingController _txtQuantity = TextEditingController();
 
+  var formatter = DateFormat.yMMMMd('fr_FR');
   String _selectedDepotUuid = '';
   String _selectedDepotText = '';
   int? _userId;
   // bool _savingSucceed = false;
 
   DateTime _selectedDate = DateTime.now();
-  final _customDateFormat = [dd, ' ', MM, ' ', yyyy];
   static const _kDuration = Duration(milliseconds: 300);
   static const _kCurve = Curves.ease;
 
@@ -286,7 +287,7 @@ class _StockLossPageState extends State<StockLossPage> {
   }
 
   Widget stockExitStartPage() {
-    String formattedSelectedDate = formatDate(_selectedDate, _customDateFormat);
+    String formattedSelectedDate = formatter.format(_selectedDate);
 
     Future selectDate(BuildContext context) async {
       final DateTime? picked = await showDatePicker(
@@ -298,7 +299,7 @@ class _StockLossPageState extends State<StockLossPage> {
       if (picked != null && picked != _selectedDate) {
         setState(() {
           _selectedDate = picked;
-          formattedSelectedDate = formatDate(_selectedDate, _customDateFormat);
+          formattedSelectedDate = formatter.format(_selectedDate);
         });
       }
     }
@@ -449,7 +450,7 @@ class _StockLossPageState extends State<StockLossPage> {
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 8, bottom: 0),
-            child: Text('Date: ${formatDate(date, _customDateFormat)}'),
+            child: Text('Date: ${formatter.format(date)}'),
           ),
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
