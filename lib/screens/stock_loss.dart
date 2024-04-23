@@ -1,3 +1,4 @@
+import 'package:bhima_collect/models/lot.dart';
 import 'package:bhima_collect/models/stock_movement.dart';
 import 'package:bhima_collect/providers/exit_movement.dart';
 import 'package:bhima_collect/services/db.dart';
@@ -397,10 +398,12 @@ class _StockLossPageState extends State<StockLossPage> {
 
     Future batchInsertMovements(var lots) async {
       var movementUuid = _uuid.v4();
+      final allLots = await Lot.inventories(database, _selectedDepotUuid);
       List<StockMovement> movements = [];
 
       lots.forEach((element) async {
         if (element != null && element['lot_uuid'] != null) {
+          var lot = allLots.where((lt) => lt.uuid == element['lot_uuid']).first;
           var movement = StockMovement(
             uuid: _uuid.v4(),
             movementUuid: movementUuid,
@@ -419,6 +422,10 @@ class _StockLossPageState extends State<StockLossPage> {
             unitCost: element['unit_cost'].toDouble(),
           );
           movements.add(movement);
+          var quantity = (int.parse(lot.quantity.toString()) -
+              int.parse(element['quantity'] ?? 0));
+          lot.quantity = quantity;
+          await Lot.updateLot(database, lot);
         }
       });
 

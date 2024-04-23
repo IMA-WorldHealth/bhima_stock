@@ -425,8 +425,8 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
             manufacturer_brand: element['manufacturer_brand'],
             manufacturer_model: element['manufacturer_model'],
             unit_cost: double.parse(
-                uniCost.contains(',') ? uniCost.replaceAll(',', '.') : uniCost),
-            quantity: 0, // previous quantity set to zero
+                uniCost.contains(',') ? uniCost.replaceAll(",", ".") : uniCost),
+            quantity: int.parse(element['quantity']),
             avg_consumption: 0,
             exhausted: false,
             expired: false,
@@ -450,7 +450,7 @@ class _StockEntryIntegrationState extends State<StockEntryIntegration> {
             description: 'INTEGRATION',
             quantity: int.parse(element['quantity']),
             unitCost: double.parse(
-                uniCost.contains(',') ? uniCost.replaceAll(',', '.') : uniCost),
+                uniCost.contains(',') ? uniCost.replaceAll(",", ".") : uniCost),
           );
           batch.add(lot);
           movements.add(movement);

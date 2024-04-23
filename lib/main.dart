@@ -2,10 +2,12 @@ import 'package:animated_splash_screen/animated_splash_screen.dart';
 import 'package:bhima_collect/providers/current_depot_provider.dart';
 import 'package:bhima_collect/providers/entry_movement.dart';
 import 'package:bhima_collect/providers/exit_movement.dart';
+import 'package:bhima_collect/providers/project.dart';
 import 'package:bhima_collect/screens/depot.dart';
 import 'package:bhima_collect/screens/home.dart';
 import 'package:bhima_collect/screens/settings.dart';
 import 'package:bhima_collect/screens/splash_screen.dart';
+import 'package:bhima_collect/screens/stock_adjustment.dart';
 import 'package:bhima_collect/screens/stock_entry.dart';
 import 'package:bhima_collect/screens/stock_entry_integration.dart';
 import 'package:bhima_collect/screens/stock_exit.dart';
@@ -23,6 +25,7 @@ void main() {
       ChangeNotifierProvider(create: (_) => CurrentDepotProvider()),
       ChangeNotifierProvider(create: (_) => EntryMovement()),
       ChangeNotifierProvider(create: (_) => ExitMovement()),
+      ChangeNotifierProvider(create: (_) => Project())
     ],
     child: const MainScreen(),
   ));
@@ -73,8 +76,11 @@ class _MyAppState extends State<MainScreen> {
             actionsIconTheme: IconThemeData(color: Colors.blue[800]),
             centerTitle: true,
             titleTextStyle: const TextStyle(color: Colors.blue)),
+        visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: const MyApp(),
+      home: const Scaffold(
+        body: MyApp(),
+      ),
       // initialRoute: '/',
       routes: {
         '/home': (context) => const HomePage(),
@@ -85,6 +91,7 @@ class _MyAppState extends State<MainScreen> {
         '/stock_exit': (context) => const StockExitPage(),
         '/stock_integration': (context) => const StockEntryIntegration(),
         '/stock_loss': (context) => const StockLossPage(),
+        '/stock_adjustment': (context) => const StockAdjustmentPage(),
       },
     );
   }

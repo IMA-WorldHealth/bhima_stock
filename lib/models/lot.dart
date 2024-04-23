@@ -217,13 +217,45 @@ class Lot {
     return collection;
   }
 
+  static formatList(List lotsRaw) {
+    List<Lot> lots = lotsRaw.map((lot) {
+      return Lot(
+        uuid: lot['lot_uuid'],
+        label: lot['lot_label'],
+        lot_description: lot['lot_description'],
+        code: lot['code'],
+        inventory_uuid: lot['inventory_uuid'],
+        text: lot['inventory_text'],
+        unit_type: lot['unit_type'],
+        group_name: lot['group_name'],
+        depot_text: lot['depot_text'],
+        depot_uuid: lot['depot_uuid'],
+        is_asset: lot['is_asset'],
+        barcode: lot['barcode'],
+        serial_number: lot['serial_number'],
+        reference_number: lot['reference_number'],
+        manufacturer_brand: lot['manufacturer_brand'],
+        manufacturer_model: lot['manufacturer_model'],
+        unit_cost: lot['unit_cost'],
+        quantity: lot['quantity'],
+        avg_consumption: lot['avg_consumption'],
+        exhausted: parseBool(lot['exhausted']),
+        expired: parseBool(lot['expired']),
+        near_expiration: parseBool(lot['near_expiration']),
+        expiration_date: parseDate(lot['expiration_date']),
+        entry_date: parseDate(lot['entry_date']),
+      );
+    }).toList();
+    return lots;
+  }
+
   // Define a function that inserts lot into the database
   static Future<void> insertLot(dynamic database, Lot lot) async {
     final db = await database;
     await db.insert(
       'lot',
       lot.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.ignore,
+      conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
 
@@ -234,7 +266,7 @@ class Lot {
       final batch = txn.batch();
       for (var lot in lots) {
         batch.insert('lot', lot.toMap(),
-            conflictAlgorithm: ConflictAlgorithm.ignore);
+            conflictAlgorithm: ConflictAlgorithm.replace);
       }
       await batch.commit(noResult: true);
     });

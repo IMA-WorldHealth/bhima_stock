@@ -45,6 +45,7 @@ class _HomePageState extends State<HomePage> {
   String _username = '';
   String _password = '';
   String _token = '';
+  int projectId = 0;
   double _progress = 0.0;
   int _countSynced = 0;
   int _maxToSync = 0;
@@ -72,6 +73,7 @@ class _HomePageState extends State<HomePage> {
       _selectDepotUuid = (prefs.getString('selected_depot_uuid') ?? '');
       _formattedLastUpdate = (prefs.getString('last_sync_date') ?? '');
       _isRecentSync = (prefs.getInt('last_sync') ?? 0) == 0 ? false : true;
+      projectId = (prefs.getInt('projectId') ?? 0);
     });
   }
 
@@ -127,11 +129,7 @@ class _HomePageState extends State<HomePage> {
       }).toList();
       // write new entries
       await Lot.txInsertLot(database, lots);
-
       await InventoryLot.import(database);
-      setState(() {
-        _progress += 0.1;
-      });
     } catch (e) {
       throw Exception(e);
     }
@@ -216,6 +214,49 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future syncAdjustMovements() async {
+    try {
+      const url = '/stock/inventory_adjustment';
+      List<StockMovement> movements =
+          await StockMovement.stockMovements(database);
+      var lots = movements
+          .where((element) =>
+              element.isSync == 0 ||
+              element.isSync == null && element.fluxId == 15)
+          .toList();
+      var groupedByIsExit = lots.groupListsBy((element) => element.isExit);
+
+      List<StockMovement> exitMovement = [];
+
+      groupedByIsExit.forEach((key, value) {
+        if (key == 1) {
+          exitMovement = value;
+        }
+      });
+      var exitGrouped =
+          exitMovement.groupListsBy((element) => element.movementUuid);
+
+      exitGrouped.forEach((key, value) async {
+        var result = await connexion
+            .post(url, _token, {'lots': value, 'sync_mobile': 1});
+        if (key != null && result != null && result['uuids'] != null) {
+          // update the sync status for valid lots of the movements
+          // await StockMovement.updateSyncStatus(database, key, result['uuids']);
+          setState(() {
+            _countSynced++;
+          });
+        }
+      });
+      // fetch fresh data from the server after movements
+      await fetchLots();
+    } catch (e) {
+      if (kDebugMode) {
+        print('ERROR ::: $e');
+      }
+      rethrow;
+    }
+  }
+
   Future syncStockMovementExits() async {
     try {
       const url = '/stock/lots/movements';
@@ -223,7 +264,10 @@ class _HomePageState extends State<HomePage> {
           await StockMovement.stockMovements(database);
 
       var lots = movements
-          .where((element) => element.isSync == 0 || element.isSync == null)
+          .where((element) =>
+              element.isSync == 0 ||
+              element.isSync == null && element.fluxId == 9 ||
+              element.fluxId == 11)
           .toList();
       var groupedByIsExit = lots.groupListsBy((element) => element.isExit);
 
@@ -292,7 +336,8 @@ class _HomePageState extends State<HomePage> {
         _isLoading = true;
       });
       // init connexion by getting the user token
-      var token = await connexion.getToken(_serverUrl, _username, _password);
+      var token =
+          await connexion.getToken(_serverUrl, _username, _password, projectId);
       setState(() {
         _token = token;
         _progress = 0.1;
@@ -308,6 +353,7 @@ class _HomePageState extends State<HomePage> {
 
     syncLots()
         .then((_) => syncMovementEntries())
+        .then((_) => syncAdjustMovements())
         .then((_) => syncStockMovementExits())
         .then((_) => syncStockMovementExits())
         .then((_) => fetchInventory())
@@ -328,9 +374,14 @@ class _HomePageState extends State<HomePage> {
                 _progress = 0.0;
                 _isLoading = false;
                 _isRecentSync = true;
-              })
+              }),
+              cleanAllMovement()
             })
         .catchError(onError);
+  }
+
+  cleanAllMovement() async {
+    await StockMovement.clean(database);
   }
 
   void onError(e) {
@@ -450,7 +501,11 @@ class _HomePageState extends State<HomePage> {
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: <Widget>[
-                            Text('Stock'),
+                            Icon(Icons.list_alt_sharp),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 8),
+                              child: Text('Stock'),
+                            ),
                           ],
                         ),
                       ),
@@ -480,19 +535,45 @@ class _HomePageState extends State<HomePage> {
                     Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: ElevatedButton(
-                        onPressed: _isLoading ? null : syncBtnClicked,
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/stock_adjustment')
+                              .then((value) => Provider.of<ExitMovement>(
+                                      context,
+                                      listen: false)
+                                  .reset());
+                        },
                         style: btnStyle,
-                        child: Row(
+                        child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: <Widget>[
-                            _isLoading
-                                ? const CircularProgressIndicator(
-                                    color: Colors.white,
-                                    semanticsLabel: 'Chargement...',
-                                  )
-                                : const Text('Synchroniser'),
+                            Icon(Icons.format_align_justify_rounded),
+                            Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 8),
+                                child: Text('Ajustement des stocks')),
                           ],
                         ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : syncBtnClicked,
+                        style: btnStyle,
+                        child: _isLoading
+                            ? const CircularProgressIndicator(
+                                color: Colors.white,
+                                semanticsLabel: 'Chargement...',
+                              )
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: <Widget>[
+                                  Icon(Icons.sync),
+                                  Padding(
+                                      padding:
+                                          EdgeInsets.symmetric(horizontal: 8),
+                                      child: Text('Synchroniser')),
+                                ],
+                              ),
                       ),
                     ),
                     Padding(

@@ -75,6 +75,7 @@ class BhimaDatabase {
             "date" TEXT,
             "description" TEXT,
             "quantity" NUMERIC,
+            "oldQuantity" NUMERIC,
             "unitCost" NUMERIC,
             "isSync" NUMERIC,
             PRIMARY KEY ("uuid")
@@ -121,8 +122,33 @@ class BhimaDatabase {
       },
       // Set the version. This executes the onCreate function and provides a
       // path to perform database upgrades and downgrades.
-      version: 1,
+      version: 2,
+      onUpgrade: (db, oldVersion, newVersion) {
+        if (oldVersion < 2) {
+          upgradeSM();
+        }
+      },
     );
     return database;
+  }
+
+  static upgradeSM() async {
+    var db = await openDatabase(join(await getDatabasesPath(), 'bhima.db'));
+    await addColumnIfNotExists(db, 'stock_movement', 'oldQuantity', 'NUMERIC');
+    await db.close();
+  }
+}
+
+Future<void> addColumnIfNotExists(
+    Database db, String tableName, String columnName, String typeInfo) async {
+  // Check if the column already exists
+  List<Map<String, dynamic>> result =
+      await db.rawQuery("PRAGMA table_info($tableName)");
+
+  bool columnExists = result.any((column) => column['name'] == columnName);
+
+  if (!columnExists) {
+    // Column does not exist, add it
+    await db.execute('ALTER TABLE $tableName ADD COLUMN $columnName $typeInfo');
   }
 }
