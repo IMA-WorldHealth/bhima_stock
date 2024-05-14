@@ -17,27 +17,28 @@ class StockMovement {
   DateTime? date;
   String? description;
   int quantity = 0;
+  int? oldQuantity;
   double unitCost = 0;
   int? isSync = 0;
 
-  StockMovement({
-    required this.uuid,
-    required this.movementUuid,
-    required this.depotUuid,
-    required this.inventoryUuid,
-    required this.lotUuid,
-    required this.reference,
-    required this.entityUuid,
-    required this.periodId,
-    required this.userId,
-    required this.fluxId,
-    required this.isExit,
-    required this.date,
-    required this.description,
-    required this.quantity,
-    required this.unitCost,
-    this.isSync,
-  });
+  StockMovement(
+      {required this.uuid,
+      required this.movementUuid,
+      required this.depotUuid,
+      required this.inventoryUuid,
+      required this.lotUuid,
+      required this.reference,
+      required this.entityUuid,
+      required this.periodId,
+      required this.userId,
+      required this.fluxId,
+      required this.isExit,
+      required this.date,
+      required this.description,
+      required this.quantity,
+      required this.unitCost,
+      this.isSync,
+      this.oldQuantity});
 
   Map<String, dynamic> toMap() {
     return {
@@ -57,12 +58,13 @@ class StockMovement {
       'quantity': quantity,
       'unitCost': unitCost,
       'isSync': isSync,
+      'oldQuantity': oldQuantity,
     };
   }
 
   @override
   String toString() {
-    return 'StockMovement{uuid: $uuid, depotUuid: $depotUuid, lotUuid: $lotUuid, reference: $reference, entityUuid: $entityUuid, periodId: $periodId, fluxId: $fluxId, isExit: $isExit, date: $date, description: $description, quantity: $quantity, unitCost: $unitCost}';
+    return 'StockMovement{uuid: $uuid, depotUuid: $depotUuid, lotUuid: $lotUuid, reference: $reference, entityUuid: $entityUuid, periodId: $periodId, fluxId: $fluxId, isExit: $isExit, date: $date, description: $description, quantity: $quantity, oldQuantity: $oldQuantity, unitCost: $unitCost}';
   }
 
   String? get getUuid {
@@ -117,6 +119,10 @@ class StockMovement {
     return quantity;
   }
 
+  int? get getOldQuantity {
+    return oldQuantity;
+  }
+
   double? get getUnitCost {
     return unitCost;
   }
@@ -141,6 +147,7 @@ class StockMovement {
     description = json['description'];
     unitCost = json['unitCost'];
     quantity = json['quantity'];
+    oldQuantity = json['oldQuantity'];
     date = parseDate(json['date']);
     isExit = json['isExit'];
     isSync = json['isSync'];
@@ -163,6 +170,7 @@ class StockMovement {
       'date': date.toString(),
       'description': description,
       'quantity': quantity,
+      'oldQuantity': oldQuantity,
       'unitCost': unitCost,
       'isSync': isSync,
     };
@@ -192,6 +200,7 @@ class StockMovement {
         description: maps[i]['description'],
         unitCost: maps[i]['unitCost'].toDouble(),
         quantity: maps[i]['quantity'],
+        oldQuantity: maps[i]['oldQuantity'],
         date: parseDate(maps[i]['date']),
         isExit: maps[i]['isExit'],
         isSync: maps[i]['isSync'],
@@ -206,31 +215,16 @@ class StockMovement {
 
     // Get data from local movements and latest online data received
     String query = '''
-      SELECT z.depot_uuid, z.inventory_text AS text, z.lot_label AS label,
-      SUM(z.quantity) quantity,
-      z.code, z.unit_type, z.isExit, z.inventory_uuid, z.lot_uuid,
-      z.expiration_date, z.unit_cost
-      FROM (
-        SELECT
-          i.uuid AS inventory_uuid, l.uuid AS lot_uuid,
-          m.depotUuid AS depot_uuid, i.label AS inventory_text, l.label AS lot_label,
-          SUM(CASE WHEN m.isExit = 0 THEN 1 * m.quantity ELSE -1 * m.quantity END) quantity,
-          m.isExit, i.code, i.unit AS unit_type, l.expiration_date, l.unit_cost
-        FROM stock_movement m
-        JOIN inventory_lot l ON l.uuid = m.lotUuid
-        JOIN inventory i ON i.uuid = l.inventory_uuid
-        WHERE m.isSync IS null OR m.isSync = 0
-        GROUP BY m.depotUuid, l.inventory_uuid, l.uuid
-        UNION ALL
-        SELECT
-          lot.inventory_uuid AS inventory_uuid, lot.uuid AS lot_uuid,
-          lot.depot_uuid AS depot_uuid, lot.text AS inventory_text, lot.label AS lot_label, lot.quantity,
-          0 AS isExit, lot.code, lot.unit_type AS unit_type, lot.expiration_date, lot.unit_cost
-        FROM lot
-        GROUP BY lot.depot_uuid, lot.inventory_uuid, lot.uuid
-      ) z 
-      GROUP BY z.depot_uuid, z.inventory_uuid, z.lot_uuid
-      ORDER BY z.inventory_text, z.lot_label;
+      SELECT l.depot_uuid, i.label AS text, l.label AS label,
+      l.quantity,
+      l.code, l.unit_type, m.isExit, l.inventory_uuid, l.uuid AS lot_uuid,
+      l.expiration_date, l.unit_cost
+      FROM lot l
+      JOIN inventory i ON i.uuid = l.inventory_uuid
+      LEFT JOIN stock_movement m ON m.lotUuid = l.uuid
+      WHERE m.isSync IS null OR m.isSync = 0
+      GROUP BY l.depot_uuid, l.inventory_uuid, l.uuid
+      ORDER BY i.label, l.label;
     ''';
     final List<Map<String, dynamic>> maps = await db.rawQuery(query);
 
@@ -245,32 +239,16 @@ class StockMovement {
 
     // Get data from local movements and latest online data received
     String query = '''
-      SELECT z.depot_uuid, z.inventory_text AS text, z.lot_label AS label,
-      SUM(z.quantity) quantity,
-      z.code, z.unit_type, z.isExit, z.inventory_uuid, z.lot_uuid,
-      z.expiration_date, z.unit_cost
-      FROM (
-        SELECT
-          i.uuid AS inventory_uuid, l.uuid AS lot_uuid,
-          m.depotUuid AS depot_uuid, i.label AS inventory_text, l.label AS lot_label,
-          SUM(CASE WHEN m.isExit = 0 THEN 1 * m.quantity ELSE -1 * m.quantity END) quantity,
-          m.isExit, i.code, i.unit AS unit_type, l.expiration_date, l.unit_cost
-        FROM stock_movement m
-        JOIN inventory_lot l ON l.uuid = m.lotUuid
-        JOIN inventory i ON i.uuid = l.inventory_uuid
-        WHERE m.isSync IS null OR m.isSync = 0
-        GROUP BY m.depotUuid, l.inventory_uuid, l.uuid
-        UNION ALL
-        SELECT
-          lot.inventory_uuid AS inventory_uuid, lot.uuid AS lot_uuid,
-          lot.depot_uuid AS depot_uuid, lot.text AS inventory_text, lot.label AS lot_label, lot.quantity,
-          0 AS isExit, lot.code, lot.unit_type AS unit_type, lot.expiration_date, lot.unit_cost
-        FROM lot
-        GROUP BY lot.depot_uuid, lot.inventory_uuid, lot.uuid
-      ) z 
-      WHERE z.depot_uuid = ?
-      GROUP BY z.depot_uuid, z.inventory_uuid, z.lot_uuid
-      ORDER BY z.inventory_text, z.lot_label;
+      SELECT l.depot_uuid, i.label AS text, l.label AS label,
+      l.quantity,
+      l.code, l.unit_type, m.isExit, l.inventory_uuid, l.uuid AS lot_uuid,
+      l.expiration_date, l.unit_cost
+      FROM lot l
+      JOIN inventory i ON i.uuid = l.inventory_uuid
+      LEFT JOIN stock_movement m ON m.lotUuid = l.uuid
+      WHERE m.isSync IS null OR m.isSync = 0 AND l.depot_uuid = ?
+      GROUP BY l.depot_uuid, l.inventory_uuid, l.uuid
+      ORDER BY i.label, l.label;
     ''';
     final List<Map<String, dynamic>> maps =
         await db.rawQuery(query, [depotUuid]);
@@ -287,32 +265,17 @@ class StockMovement {
 
     // Get data from local movements and latest online data received
     String query = '''
-      SELECT z.depot_uuid, z.inventory_text AS text, z.lot_label AS label,
-      SUM(z.quantity) quantity,
-      z.code, z.unit_type, z.isExit, z.inventory_uuid, z.lot_uuid,
-      z.expiration_date, z.unit_cost
-      FROM (
-        SELECT
-          i.uuid AS inventory_uuid, l.uuid AS lot_uuid,
-          m.depotUuid AS depot_uuid, i.label AS inventory_text, l.label AS lot_label,
-          SUM(CASE WHEN m.isExit = 0 THEN 1 * m.quantity ELSE -1 * m.quantity END) quantity,
-          m.isExit, i.code, i.unit AS unit_type, l.expiration_date, l.unit_cost
-        FROM stock_movement m
-        JOIN inventory_lot l ON l.uuid = m.lotUuid
-        JOIN inventory i ON i.uuid = l.inventory_uuid
-        WHERE m.isSync IS null OR m.isSync = 0
-        GROUP BY m.depotUuid, l.inventory_uuid, l.uuid
-        UNION ALL
-        SELECT
-          lot.inventory_uuid AS inventory_uuid, lot.uuid AS lot_uuid,
-          lot.depot_uuid AS depot_uuid, lot.text AS inventory_text, lot.label AS lot_label, lot.quantity,
-          0 AS isExit, lot.code, lot.unit_type AS unit_type, lot.expiration_date, lot.unit_cost
-        FROM lot
-        GROUP BY lot.depot_uuid, lot.inventory_uuid, lot.uuid
-      ) z 
-      WHERE z.depot_uuid = ? OR z.lot_label LIKE ? OR z.inventory_text LIKE ?
-      GROUP BY z.depot_uuid, z.inventory_uuid, z.lot_uuid
-      ORDER BY z.inventory_text, z.lot_label;
+      SELECT l.depot_uuid, i.label AS text, l.label AS label,
+      l.quantity,
+      l.code, l.unit_type, m.isExit, l.inventory_uuid, l.uuid AS lot_uuid,
+      l.expiration_date, l.unit_cost
+      FROM lot l
+      LEFT JOIN inventory i ON i.uuid = l.inventory_uuid
+      LEFT JOIN stock_movement m ON m.lotUuid = l.uuid
+      WHERE m.isSync IS null OR m.isSync = 0 AND 
+      l.depot_uuid = ? OR l.label LIKE ? OR i.label LIKE ?
+      GROUP BY l.depot_uuid, l.inventory_uuid, l.uuid
+      ORDER BY i.label, l.label;
     ''';
     final List<Map<String, dynamic>> maps =
         await db.rawQuery(query, [depotUuid, '%$text%', '%$text%']);
@@ -350,7 +313,7 @@ class StockMovement {
       final batch = txn.batch();
       for (var movement in movements) {
         batch.insert('stock_movement', movement.toMap(),
-            conflictAlgorithm: ConflictAlgorithm.ignore);
+            conflictAlgorithm: ConflictAlgorithm.replace);
       }
       await batch.commit(noResult: true);
     });
