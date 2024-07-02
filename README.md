@@ -16,3 +16,6 @@ Mobile application for managing BHIMA stock offline.
 - Flutter
 - Awesome Flutter Snippets
 - Dart
+
+## Stats
+![Alt](https://repobeats.axiom.co/api/embed/588029eddd9abf90f13b3f097b95528960a05c36.svg "Repobeats analytics image")
