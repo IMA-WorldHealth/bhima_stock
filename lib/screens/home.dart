@@ -45,6 +45,7 @@ class _HomePageState extends State<HomePage> {
   String _username = '';
   String _password = '';
   String _token = '';
+  int projectId = 0;
   double _progress = 0.0;
   int _countSynced = 0;
   int _maxToSync = 0;
@@ -72,6 +73,7 @@ class _HomePageState extends State<HomePage> {
       _selectDepotUuid = (prefs.getString('selected_depot_uuid') ?? '');
       _formattedLastUpdate = (prefs.getString('last_sync_date') ?? '');
       _isRecentSync = (prefs.getInt('last_sync') ?? 0) == 0 ? false : true;
+      projectId = (prefs.getInt('projectId') ?? 0);
     });
   }
 
@@ -127,11 +129,7 @@ class _HomePageState extends State<HomePage> {
       }).toList();
       // write new entries
       await Lot.txInsertLot(database, lots);
-
       await InventoryLot.import(database);
-      setState(() {
-        _progress += 0.1;
-      });
     } catch (e) {
       throw Exception(e);
     }
@@ -169,7 +167,7 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> syncMovementEntries() async {
+   Future syncMovementEntries() async {
     try {
       const url = '/stock/lots/movements';
       List<StockMovement> movements =
@@ -179,29 +177,25 @@ class _HomePageState extends State<HomePage> {
           .where((element) => element.isSync == 0 || element.isSync == null)
           .toList();
       var groupedByIsExit = lots.groupListsBy((element) => element.isExit);
-
-      List<StockMovement> entryMovement = [];
-      groupedByIsExit.forEach((key, value) {
-        if (key != 1) {
-          entryMovement.addAll(value);
-        }
-      });
+      ;
+      List<StockMovement> entryMovement = groupedByIsExit[0] ?? [];
 
       var entryGrouped =
           entryMovement.groupListsBy((element) => element.movementUuid);
 
-      for (var entry in entryGrouped.entries) {
+      for (var entries in entryGrouped.entries) {
+        var key = entries.key;
+        var value = entries.value;
         var result = await connexion
-            .post(url, _token, {'lots': entry.value, 'sync_mobile': 1});
-        if (result != null && result['uuids'] != null && entry.key != null) {
-          await StockMovement.updateSyncStatus(
-              database, entry.key ?? '', result['uuids']);
+            .post(url, _token, {'lots': value, 'sync_mobile': 1});
+        if (key != null && result != null && result['uuids'] != null) {
+          // update the sync status for valid lots of the movements
+          await StockMovement.updateSyncStatus(database, key, result['uuids']);
           setState(() {
             _countSynced++;
           });
         }
       }
-
       // fetch fresh data from the server after movements
       await fetchLots();
       setState(() {
@@ -215,38 +209,79 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> syncStockMovementExits() async {
+  Future syncAdjustMovements() async {
+    try {
+      const url = '/stock/inventory_adjustment';
+      List<StockMovement> movements =
+          await StockMovement.stockMovements(database);
+      var lots = movements
+          .where((element) =>
+              (element.isSync == 0 || element.isSync == null) &&
+              element.fluxId == 15)
+          .toList();
+      var groupedByIsExit = lots.groupListsBy((element) => element.isExit);
+
+      List<StockMovement> exitMovement = groupedByIsExit[1] ?? [];
+
+      var exitGrouped =
+          exitMovement.groupListsBy((element) => element.movementUuid);
+
+      for (var entry in exitGrouped.entries) {
+        var key = entry.key;
+        var value = entry.value;
+        var result = await connexion
+            .post(url, _token, {'lots': value, 'sync_mobile': 1});
+        if (key != null && result != null && result['uuids'] != null) {
+          setState(() {
+            _countSynced++;
+          });
+        }
+      }
+      // fetch fresh data from the server after movements
+      await fetchLots();
+    } catch (e) {
+      if (kDebugMode) {
+        print('ERROR ::: $e');
+      }
+      rethrow;
+    }
+  }
+
+  Future syncStockMovementExits() async {
     try {
       const url = '/stock/lots/movements';
       List<StockMovement> movements =
           await StockMovement.stockMovements(database);
 
       var lots = movements
-          .where((element) => element.isSync == 0 || element.isSync == null)
+          .where((element) =>
+              (element.isSync == 0 || element.isSync == null) &&
+              (element.fluxId == 9 || element.fluxId == 11))
           .toList();
+
       var groupedByIsExit = lots.groupListsBy((element) => element.isExit);
 
-      for (var entry in groupedByIsExit.entries) {
-        if (entry.key == 1) {
-          var exitGrouped =
-              entry.value.groupListsBy((element) => element.movementUuid);
-          for (var exitEntry in exitGrouped.entries) {
-            if (exitEntry.key != null) {
-              var result = await connexion.post(
-                  url, _token, {'lots': exitEntry.value, 'sync_mobile': 1});
-              if (result != null && result['uuids'] != null) {
-                await StockMovement.updateSyncStatus(
-                    database, exitEntry.key ?? '', result['uuids']);
-                setState(() {
-                  _countSynced++;
-                });
-              }
-            }
-          }
+      List<StockMovement> exitMovement = groupedByIsExit[1] ?? [];
+
+      var exitGrouped =
+          exitMovement.groupListsBy((element) => element.movementUuid);
+
+      for (var entry in exitGrouped.entries) {
+        var key = entry.key;
+        var value = entry.value;
+
+        var result = await connexion
+            .post(url, _token, {'lots': value, 'sync_mobile': 1});
+
+        if (key != null && result != null && result['uuids'] != null) {
+          await StockMovement.updateSyncStatus(database, key, result['uuids']);
+          setState(() {
+            _countSynced++;
+          });
         }
       }
-
       await fetchLots();
+
       setState(() {
         _progress += 0.1;
       });
@@ -264,9 +299,11 @@ class _HomePageState extends State<HomePage> {
       const url = '/stock/lots/create';
       List lots = await StockMovement.getLocalLots(database);
       var grouped = lots.groupListsBy((element) => element['movementUuid']);
-      grouped.forEach((key, value) async {
+
+      for (var entries in grouped.entries) {
+        var value = entries.value;
         await connexion.post(url, _token, {'lots': value});
-      });
+      }
       setState(() {
         _progress += 0.1;
       });
@@ -279,8 +316,8 @@ class _HomePageState extends State<HomePage> {
     bool isInternetAvailable = await InternetConnectionChecker().hasConnection;
 
     if (!isInternetAvailable) {
-      alertWarning(context, 'Pas de connexion Internet');
-      return;
+      // ignore: use_build_context_synchronously
+      return alertWarning(context, 'Pas de connexion Internet');
     }
 
     try {
@@ -288,44 +325,58 @@ class _HomePageState extends State<HomePage> {
         _isLoading = true;
       });
 
-      // Initialisation de la connexion et récupération du jeton d'utilisateur
-      var token = await connexion.getToken(_serverUrl, _username, _password);
+      // Init connexion by getting the user token
+      var token =
+          await connexion.getToken(_serverUrl, _username, _password, projectId);
       setState(() {
         _token = token;
         _progress = 0.1;
       });
 
-      // Performing sync operations in sequence
+      // Execute each sync step sequentially
       await syncLots();
       await syncMovementEntries();
+      await syncAdjustMovements();
       await syncStockMovementExits();
       await fetchInventory();
 
-      // Updating sync information
+      // Save sync info and update state
       _saveSyncInfo(_formattedLastUpdate, _countSynced, _maxToSync);
+
       setState(() {
         lastUpdate = DateTime.now();
         _formattedLastUpdate =
             formatDate(lastUpdate, [dd, '/', mm, '/', yyyy, '  ', HH, ':', nn]);
-        _isRecentSync = true;
-        _progress += 0.1;
       });
 
+      // Show success message and update state
+      // ignore: use_build_context_synchronously
       alertSuccess(context, 'Synchronisation des données réussie');
-    } catch (e) {
-      onError(e);
-    } finally {
+
       setState(() {
         _progress = 0.0;
         _isLoading = false;
+        _isRecentSync = true;
       });
+
+      // Clean all movements
+      cleanAllMovement();
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _progress = 0.0;
+      });
+
+      // ignore: use_build_context_synchronously
+      return alertError(context, "Echec de synchronisation: ${e.toString()}");
     }
   }
 
+  cleanAllMovement() async {
+    await StockMovement.clean(database);
+  }
+  
   void onError(e) {
-    if (kDebugMode) {
-      print('ERROR::SYNCHRONISATION $e');
-    }
     setState(() {
       _isLoading = false;
       _progress = 0.0;
@@ -439,7 +490,11 @@ class _HomePageState extends State<HomePage> {
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: <Widget>[
-                            Text('Stock'),
+                            Icon(Icons.list_alt_sharp),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 8),
+                              child: Text('Stock'),
+                            ),
                           ],
                         ),
                       ),
@@ -469,19 +524,45 @@ class _HomePageState extends State<HomePage> {
                     Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: ElevatedButton(
-                        onPressed: _isLoading ? null : syncBtnClicked,
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/stock_adjustment')
+                              .then((value) => Provider.of<ExitMovement>(
+                                      context,
+                                      listen: false)
+                                  .reset());
+                        },
                         style: btnStyle,
-                        child: Row(
+                        child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: <Widget>[
-                            _isLoading
-                                ? const CircularProgressIndicator(
-                                    color: Colors.white,
-                                    semanticsLabel: 'Chargement...',
-                                  )
-                                : const Text('Synchroniser'),
+                            Icon(Icons.format_align_justify_rounded),
+                            Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 8),
+                                child: Text('Ajustement des stocks')),
                           ],
                         ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : syncBtnClicked,
+                        style: btnStyle,
+                        child: _isLoading
+                            ? const CircularProgressIndicator(
+                                color: Colors.white,
+                                semanticsLabel: 'Chargement...',
+                              )
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: <Widget>[
+                                  Icon(Icons.sync),
+                                  Padding(
+                                      padding:
+                                          EdgeInsets.symmetric(horizontal: 8),
+                                      child: Text('Synchroniser')),
+                                ],
+                              ),
                       ),
                     ),
                     Padding(

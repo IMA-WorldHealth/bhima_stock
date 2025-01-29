@@ -7,6 +7,7 @@ import 'package:bhima_collect/components/search_bhima.dart';
 import 'package:bhima_collect/models/depot.dart';
 import 'package:bhima_collect/models/inventory_lot.dart';
 import 'package:bhima_collect/models/lot.dart';
+import 'package:bhima_collect/models/stock_movement.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:bhima_collect/services/db.dart';
 import 'package:bhima_collect/services/connect.dart';
@@ -32,8 +33,10 @@ class _ConfigureDepotPageState extends State<ConfigureDepotPage> {
   final TextEditingController _searchCtrller = TextEditingController();
   String _textDepot = '';
   Future<List<dynamic>>? _depotFuture;
-  String _token = '';
   String _serverUrl = '';
+  String _username = '';
+  String _password = '';
+  int projectId = 0;
   bool isLoading = false;
   int indexDepot = 0;
 
@@ -60,10 +63,12 @@ class _ConfigureDepotPageState extends State<ConfigureDepotPage> {
   Future<void> _loadSavedDepot() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
+      _username = (prefs.getString('username') ?? '');
+      _password = (prefs.getString('password') ?? '');
       _selectedDepotUuid = (prefs.getString('selected_depot_uuid') ?? '');
       _selectedDepotText = (prefs.getString('selected_depot_text') ?? '');
       _serverUrl = prefs.getString('server') ?? '';
-      _token = (prefs.getString('token') ?? '');
+      projectId = (prefs.getInt('projectId') ?? 0);
     });
   }
 
@@ -133,16 +138,19 @@ class _ConfigureDepotPageState extends State<ConfigureDepotPage> {
       setState(() {
         isLoading = true;
       });
+      var token =
+          await connexion.getToken(_serverUrl, _username, _password, projectId);
       // clean previous lots
       Lot.clean(database);
+      StockMovement.clean(database);
       // collect the lots by deposit
 
       /**
        * Include empty lots for having lots which are sent by not yet received
        */
       String lotDataUrl =
-          '$_serverUrl/stock/lots/depots?includeEmptyLot=0&fullList=1&depot_uuid=$depotUuid';
-      List lotsRaw = await connexion.api(lotDataUrl, _token);
+          '/stock/lots/depots?includeEmptyLot=0&fullList=1&depot_uuid=$depotUuid';
+      List lotsRaw = await connexion.api(lotDataUrl, token);
 
       List<Lot> lots = lotsRaw.map((lot) {
         return Lot(

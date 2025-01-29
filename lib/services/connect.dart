@@ -16,10 +16,7 @@ class Connect {
   }
 
   Future<String> getToken(
-    String server,
-    String username,
-    String password,
-  ) async {
+      String server, String username, String password, int projectId) async {
     _server = server;
     _username = username;
     _password = password;
@@ -31,7 +28,7 @@ class Connect {
         body: jsonEncode(<String, dynamic>{
           'username': _username,
           'password': _password,
-          'project': 1,
+          'project': projectId,
         }));
 
     if (response.statusCode == 200) {
@@ -85,5 +82,26 @@ class Connect {
         body: jsonEncode(params));
 
     return jsonDecode(response.body);
+  }
+
+  Future<dynamic> getProject(String url) async {
+    var response = await http.get(
+      Uri.parse(url),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Accept': 'application/json',
+        'Accept-Encoding': 'gzip, deflate',
+      },
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+    if (response.statusCode == 201) {
+      return jsonDecode(response.body);
+    }
+    if (response.statusCode == 431) {
+      throw 'Request field too large with status ${response.statusCode}';
+    }
+    throw 'Request failed with status : ${response.statusCode}';
   }
 }
